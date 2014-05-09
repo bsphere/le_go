@@ -7,7 +7,6 @@ Golang library for logentries.com
 Usage
 -----
 Add a new manual TCP token log at logentries.com and copy the token
-- `import `
 
 
 ```go
