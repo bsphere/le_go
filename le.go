@@ -33,4 +33,6 @@ func (le *LE) Println(msg string) {
 	if le.Conn == nil {
 		return
 	}
+
+	fmt.Fprintln(le.Conn, le.Token, msg)
 }
