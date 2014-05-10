@@ -19,15 +19,15 @@ type Logger struct {
 }
 
 func Connect(token string) (*Logger, error) {
-	Logger := Logger{
+	logger := Logger{
 		token: token,
 	}
 
-	if err := Logger.reopenConnection(); err != nil {
+	if err := logger.reopenConnection(); err != nil {
 		return nil, err
 	}
 
-	return &Logger, nil
+	return &logger, nil
 }
 
 func (logger *Logger) Close() error {
