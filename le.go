@@ -52,14 +52,16 @@ func (le *LE) isOpenConnection() bool {
 
 	le.conn.SetReadDeadline(time.Now())
 
-	if _, err := le.conn.Read(buf); err == io.EOF {
-		le.conn.Close()
+	if _, err := le.conn.Read(buf); err.(net.Error).Timeout() == true &&
+		err != io.EOF {
 
-		return false
-	} else {
 		le.conn.SetReadDeadline(time.Time{})
 
 		return true
+	} else {
+		le.conn.Close()
+
+		return false
 	}
 }
 
