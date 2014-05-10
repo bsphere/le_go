@@ -3,6 +3,8 @@ logentries
 
 Golang library for logentries.com
 
+It is compatible with http://golang.org/pkg/log/#Logger
+
 
 Usage
 -----
