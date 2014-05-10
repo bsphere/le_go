@@ -5,6 +5,8 @@ Golang library for logentries.com
 
 It is compatible with http://golang.org/pkg/log/#Logger
 
+godoc - http://godoc.org/github.com/bsphere/logentries
+
 
 Usage
 -----
