@@ -5,14 +5,17 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
 	"time"
 )
 
 type Logger struct {
 	conn   net.Conn
-	flags  int
+	flag   int
+	mu     sync.Mutex
 	prefix string
 	token  string
+	buf    []byte
 }
 
 func Connect(token string) (*Logger, error) {
@@ -27,50 +30,50 @@ func Connect(token string) (*Logger, error) {
 	return &Logger, nil
 }
 
-func (Logger *Logger) Close() error {
-	if Logger.conn != nil {
-		return Logger.conn.Close()
+func (logger *Logger) Close() error {
+	if logger.conn != nil {
+		return logger.conn.Close()
 	}
 
 	return nil
 }
 
-func (Logger *Logger) reopenConnection() error {
+func (logger *Logger) reopenConnection() error {
 	conn, err := net.Dial("tcp", "data.logentries.com:80")
 	if err != nil {
 		return err
 	}
 
-	Logger.conn = conn
+	logger.conn = conn
 
 	return nil
 }
 
-func (Logger *Logger) isOpenConnection() bool {
-	if Logger.conn == nil {
+func (logger *Logger) isOpenConnection() bool {
+	if logger.conn == nil {
 		return false
 	}
 
 	buf := make([]byte, 1)
 
-	Logger.conn.SetReadDeadline(time.Now())
+	logger.conn.SetReadDeadline(time.Now())
 
-	if _, err := Logger.conn.Read(buf); err.(net.Error).Timeout() == true &&
+	if _, err := logger.conn.Read(buf); err.(net.Error).Timeout() == true &&
 		err != io.EOF {
 
-		Logger.conn.SetReadDeadline(time.Time{})
+		logger.conn.SetReadDeadline(time.Time{})
 
 		return true
 	} else {
-		Logger.conn.Close()
+		logger.conn.Close()
 
 		return false
 	}
 }
 
-func (Logger *Logger) ensureOpenConnection() error {
-	if !Logger.isOpenConnection() {
-		if err := Logger.reopenConnection(); err != nil {
+func (logger *Logger) ensureOpenConnection() error {
+	if !logger.isOpenConnection() {
+		if err := logger.reopenConnection(); err != nil {
 			return err
 		}
 	}
@@ -78,100 +81,78 @@ func (Logger *Logger) ensureOpenConnection() error {
 	return nil
 }
 
-func (Logger *Logger) Fatal(v ...interface{}) {
-	if err := Logger.ensureOpenConnection(); err != nil {
-		return
-	}
-
-	fmt.Fprint(Logger.conn, Logger.token, Logger.prefix, v)
+func (logger *Logger) Fatal(v ...interface{}) {
+	logger.Output(2, fmt.Sprint(v...))
 	os.Exit(1)
 }
 
-func (Logger *Logger) Fatalf(v ...interface{}) {
-	if err := Logger.ensureOpenConnection(); err != nil {
-		return
-	}
-
-	fmt.Fprintf(Logger.conn, Logger.token, Logger.prefix, v)
+func (logger *Logger) Fatalf(format string, v ...interface{}) {
+	logger.Output(2, fmt.Sprintf(format, v...))
 	os.Exit(1)
 }
 
-func (Logger *Logger) Fatalln(v ...interface{}) {
-	if err := Logger.ensureOpenConnection(); err != nil {
-		return
-	}
-
-	fmt.Fprintln(Logger.conn, Logger.token, Logger.prefix, v)
+func (logger *Logger) Fatalln(v ...interface{}) {
+	logger.Output(2, fmt.Sprintln(v...))
 	os.Exit(1)
 }
 
-func (Logger *Logger) Flags() int {
-	return Logger.flags
+func (logger *Logger) Flags() int {
+	return logger.flag
 }
 
-func (Logger *Logger) Output(calldepth int, s string) error {
-	return nil
-}
-
-func (Logger *Logger) Panic(v ...interface{}) {
-	if err := Logger.ensureOpenConnection(); err != nil {
-		return
+func (logger *Logger) Output(calldepth int, s string) error {
+	if err := logger.ensureOpenConnection(); err != nil {
+		return err
 	}
 
-	fmt.Fprint(Logger.conn, Logger.token, Logger.prefix, fmt.Sprint(v...))
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
+
+	logger.buf = logger.buf[:0]
+	logger.buf = append(logger.buf, (logger.token + " ")...)
+	logger.buf = append(logger.buf, (logger.prefix + " ")...)
+	logger.buf = append(logger.buf, s...)
+
+	_, err := logger.conn.Write(logger.buf)
+
+	return err
+}
+
+func (logger *Logger) Panic(v ...interface{}) {
+	logger.Output(2, fmt.Sprint(v...))
 	panic("")
 }
 
-func (Logger *Logger) Panicf(format string, v ...interface{}) {
-	if err := Logger.ensureOpenConnection(); err != nil {
-		return
-	}
-
-	fmt.Fprintf(Logger.conn, Logger.token, Logger.prefix, fmt.Sprintf(format, v...))
+func (logger *Logger) Panicf(format string, v ...interface{}) {
+	logger.Output(2, fmt.Sprintf(format, v...))
 	panic("")
 }
 
-func (Logger *Logger) Panicln(v ...interface{}) {
-	if err := Logger.ensureOpenConnection(); err != nil {
-		return
-	}
-
-	fmt.Fprintln(Logger.conn, Logger.token, Logger.prefix, fmt.Sprintln(v...))
+func (logger *Logger) Panicln(v ...interface{}) {
+	logger.Output(2, fmt.Sprintln(v...))
 	panic("")
 }
 
-func (Logger *Logger) Prefix() string {
-	return Logger.prefix
+func (logger *Logger) Prefix() string {
+	return logger.prefix
 }
 
-func (Logger *Logger) Print(v ...interface{}) {
-	if err := Logger.ensureOpenConnection(); err != nil {
-		return
-	}
-
-	fmt.Fprint(Logger.conn, Logger.token, Logger.prefix, fmt.Sprint(v...))
+func (logger *Logger) Print(v ...interface{}) {
+	logger.Output(2, fmt.Sprint(v...))
 }
 
-func (Logger *Logger) Printf(format string, v ...interface{}) {
-	if err := Logger.ensureOpenConnection(); err != nil {
-		return
-	}
-
-	fmt.Fprintf(Logger.conn, Logger.token, Logger.prefix, fmt.Sprintf(format, v...))
+func (logger *Logger) Printf(format string, v ...interface{}) {
+	logger.Output(2, fmt.Sprintf(format, v...))
 }
 
-func (Logger *Logger) Println(v ...interface{}) {
-	if err := Logger.ensureOpenConnection(); err != nil {
-		return
-	}
-
-	fmt.Fprintln(Logger.conn, Logger.token, Logger.prefix, fmt.Sprintln(v...))
+func (logger *Logger) Println(v ...interface{}) {
+	logger.Output(2, fmt.Sprintln(v...))
 }
 
-func (Logger *Logger) SetFlags(flag int) {
-	Logger.flags = flag
+func (logger *Logger) SetFlags(flag int) {
+	logger.flag = flag
 }
 
-func (Logger *Logger) SetPrefix(prefix string) {
-	Logger.prefix = prefix
+func (logger *Logger) SetPrefix(prefix string) {
+	logger.prefix = prefix
 }
