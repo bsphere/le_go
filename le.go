@@ -119,18 +119,21 @@ func (logger *Logger) Output(calldepth int, s string) error {
 }
 
 func (logger *Logger) Panic(v ...interface{}) {
-	logger.Output(2, fmt.Sprint(v...))
-	panic("")
+	s := fmt.Sprint(v...)
+	logger.Output(2, s)
+	panic(s)
 }
 
 func (logger *Logger) Panicf(format string, v ...interface{}) {
-	logger.Output(2, fmt.Sprintf(format, v...))
-	panic("")
+	s := fmt.Sprintf(format, v...)
+	logger.Output(2, s)
+	panic(s)
 }
 
 func (logger *Logger) Panicln(v ...interface{}) {
-	logger.Output(2, fmt.Sprintln(v...))
-	panic("")
+	s := fmt.Sprintln(v...)
+	logger.Output(2, s)
+	panic(s)
 }
 
 func (logger *Logger) Prefix() string {
