@@ -8,13 +8,13 @@ import (
 )
 
 type LE struct {
-	Conn  net.Conn
-	Token string
+	conn  net.Conn
+	token string
 }
 
 func Connect(token string) (*LE, error) {
 	le := LE{
-		Token: token,
+		token: token,
 	}
 
 	if err := le.reopenConnection(); err != nil {
@@ -25,8 +25,8 @@ func Connect(token string) (*LE, error) {
 }
 
 func (le *LE) Close() error {
-	if le.Conn != nil {
-		return le.Conn.Close()
+	if le.conn != nil {
+		return le.conn.Close()
 	}
 
 	return nil
@@ -38,26 +38,26 @@ func (le *LE) reopenConnection() error {
 		return err
 	}
 
-	le.Conn = conn
+	le.conn = conn
 
 	return nil
 }
 
 func (le *LE) isOpenConnection() bool {
-	if le.Conn == nil {
+	if le.conn == nil {
 		return false
 	}
 
 	buf := make([]byte, 1)
 
-	le.Conn.SetReadDeadline(time.Now())
+	le.conn.SetReadDeadline(time.Now())
 
-	if _, err := le.Conn.Read(buf); err == io.EOF {
-		le.Conn.Close()
+	if _, err := le.conn.Read(buf); err == io.EOF {
+		le.conn.Close()
 
 		return false
 	} else {
-		le.Conn.SetReadDeadline(time.Time{})
+		le.conn.SetReadDeadline(time.Time{})
 
 		return true
 	}
@@ -70,5 +70,5 @@ func (le *LE) Println(msg string) {
 		}
 	}
 
-	fmt.Fprintln(le.Conn, le.Token, msg)
+	fmt.Fprintln(le.conn, le.token, msg)
 }
