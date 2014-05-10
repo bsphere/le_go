@@ -2,7 +2,6 @@ package logentries
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"sync"
@@ -58,17 +57,18 @@ func (logger *Logger) isOpenConnection() bool {
 
 	logger.conn.SetReadDeadline(time.Now())
 
-	if _, err := logger.conn.Read(buf); err.(net.Error).Timeout() == true &&
-		err != io.EOF {
+	_, err := logger.conn.Read(buf)
 
-		logger.conn.SetReadDeadline(time.Time{})
+	switch err.(type) {
+	case net.Error:
+		if err.(net.Error).Timeout() == true {
+			logger.conn.SetReadDeadline(time.Time{})
 
-		return true
-	} else {
-		logger.conn.Close()
-
-		return false
+			return true
+		}
 	}
+
+	return false
 }
 
 func (logger *Logger) ensureOpenConnection() error {
