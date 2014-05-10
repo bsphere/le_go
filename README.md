@@ -17,11 +17,7 @@ import (
 )
 
 func main() {
-	le := logentries.LE{
-		Token: "XXXX-XXXXXXXXXX-XXXXXXx-XXXXXXX",
-	}
-
-	err = le.Init()
+	le, err := logentries.Connect("XXXX-XXXX-XXXX-XXXX") // replace with token
 	if err != nil {
 		panic(err)
 	}

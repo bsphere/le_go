@@ -10,15 +10,19 @@ type LE struct {
 	Token string
 }
 
-func (le *LE) Init() error {
+func Connect(token string) (*LE, error) {
+	le := LE{
+		Token: token,
+	}
+
 	conn, err := net.Dial("tcp", "data.logentries.com:80")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	le.Conn = conn
 
-	return nil
+	return &le, nil
 }
 
 func (le *LE) Close() error {
