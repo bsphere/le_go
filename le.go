@@ -1,3 +1,5 @@
+// Package logentries provides a Golang library for logging to
+// logentries.com
 package logentries
 
 import (
@@ -17,6 +19,9 @@ type Logger struct {
 	buf    []byte
 }
 
+// Creates a new Logger instance and opens a TCP connection to logentries.com
+// The token can be generated at logentries.com by adding a new log,
+// choosing manual configuration and token based TCP connection.
 func Connect(token string) (*Logger, error) {
 	logger := Logger{
 		token: token,
@@ -29,6 +34,7 @@ func Connect(token string) (*Logger, error) {
 	return &logger, nil
 }
 
+// Closes the TCP connection to logentries.com
 func (logger *Logger) Close() error {
 	if logger.conn != nil {
 		return logger.conn.Close()
@@ -37,6 +43,7 @@ func (logger *Logger) Close() error {
 	return nil
 }
 
+// Opens a TCP connection to logentries.com
 func (logger *Logger) reopenConnection() error {
 	conn, err := net.Dial("tcp", "data.logentries.com:80")
 	if err != nil {
@@ -48,6 +55,7 @@ func (logger *Logger) reopenConnection() error {
 	return nil
 }
 
+// It returns if the TCP connection to logentries.com is open
 func (logger *Logger) isOpenConnection() bool {
 	if logger.conn == nil {
 		return false
@@ -71,6 +79,8 @@ func (logger *Logger) isOpenConnection() bool {
 	return false
 }
 
+// It ensures that the TCP connection to logentries.com is open.
+// If the connection is closed, a new one is opened.
 func (logger *Logger) ensureOpenConnection() error {
 	if !logger.isOpenConnection() {
 		if err := logger.reopenConnection(); err != nil {
