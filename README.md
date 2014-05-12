@@ -12,7 +12,7 @@ Usage
 -----
 Add a new manual TCP token log at logentries.com and copy the token
 
-Installation: `go get github.com/bsphere/logentries`
+Installation: `go get github.com/bsphere/le_go`
 
 
 ```go
