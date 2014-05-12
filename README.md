@@ -5,7 +5,7 @@ Golang library for logentries.com
 
 It is compatible with http://golang.org/pkg/log/#Logger
 
-godoc - http://godoc.org/github.com/bsphere/logentries
+godoc - http://godoc.org/github.com/bsphere/le_go
 
 
 Usage
@@ -17,8 +17,7 @@ Installation: `go get github.com/bsphere/logentries`
 
 ```go
 import (
-	"github.com/bsphere/logentries"
-)
+	"github.com/bsphere/le_go"
 
 func main() {
 	le, err := logentries.Connect("XXXX-XXXX-XXXX-XXXX") // replace with token
