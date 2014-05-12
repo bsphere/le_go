@@ -1,6 +1,6 @@
-// Package logentries provides a Golang library for logging to
+// Package le_go provides a Golang library for logging to
 // logentries.com
-package logentries
+package le_go
 
 import (
 	"fmt"
