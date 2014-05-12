@@ -13,14 +13,14 @@ Add a new manual TCP token log at [logentries.com](https://logentries.com/quick-
 
 Installation: `go get github.com/bsphere/le_go`
 
-**Note:** The Logger is asynchronous, make sure your application does not terminate immediately otherwise no log message will be sent.
+**Note:** The Logger is blocking, it can be easily run in a goroutine by calling `go le.Println(...)`
 
 ```go
 import (
 	"github.com/bsphere/le_go"
 
 func main() {
-	le, err := logentries.Connect("XXXX-XXXX-XXXX-XXXX") // replace with token
+	le, err := le_go.Connect("XXXX-XXXX-XXXX-XXXX") // replace with token
 	if err != nil {
 		panic(err)
 	}
