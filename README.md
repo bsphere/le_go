@@ -9,10 +9,11 @@ It is compatible with http://golang.org/pkg/log/#Logger
 
 Usage
 -----
-Add a new manual TCP token log at logentries.com and copy the token
+Add a new manual TCP token log at [logentries.com](https://logentries.com/quick-start/) and copy the [token](https://logentries.com/doc/input-token/).
 
 Installation: `go get github.com/bsphere/le_go`
 
+**Note:** The Logger is asynchronous, make sure your application does not terminate immediately otherwise no log message will be sent.
 
 ```go
 import (
