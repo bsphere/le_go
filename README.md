@@ -5,8 +5,7 @@ Golang library for logentries.com
 
 It is compatible with http://golang.org/pkg/log/#Logger
 
-godoc - http://godoc.org/github.com/bsphere/le_go
-
+[![GoDoc](https://godoc.org/github.com/bsphere/le_go?status.png)](https://godoc.org/github.com/bsphere/le_go)
 
 Usage
 -----
