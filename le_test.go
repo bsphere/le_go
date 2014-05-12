@@ -1,4 +1,4 @@
-package logentries
+package le_go
 
 import (
 	"testing"
