@@ -169,3 +169,11 @@ func (logger *Logger) SetFlags(flag int) {
 func (logger *Logger) SetPrefix(prefix string) {
 	logger.prefix = prefix
 }
+
+func (logger *Logger) Write(p []byte) (n int, err error) {
+	if err := logger.ensureOpenConnection(); err != nil {
+		return 0, err
+	}
+
+	return logger.conn.Write(p)
+}
