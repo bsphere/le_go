@@ -175,5 +175,13 @@ func (logger *Logger) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	return logger.conn.Write(p)
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
+
+	logger.buf = logger.buf[:0]
+	logger.buf = append(logger.buf, (logger.token + " ")...)
+	logger.buf = append(logger.buf, (logger.prefix + " ")...)
+	logger.buf = append(logger.buf, p...)
+
+	return logger.conn.Write(logger.buf)
 }
