@@ -1,6 +1,8 @@
 package le_go
 
 import (
+	"io"
+	"strings"
 	"testing"
 )
 
@@ -38,12 +40,12 @@ func TestCloseClosesConnection(t *testing.T) {
 	}
 }
 
-func TestReopenConnectionOpensConnection(t *testing.T) {
+func TestOpenConnectionOpensConnection(t *testing.T) {
 	le, _ := Connect("")
 
 	le.Close()
 
-	le.reopenConnection()
+	le.openConnection()
 
 	if le.isOpenConnection() == false {
 		t.Fail()
@@ -55,7 +57,7 @@ func TestEnsureOpenConnectionDoesNothingOnOpenConnection(t *testing.T) {
 
 	old := &le.conn
 
-	le.reopenConnection()
+	le.openConnection()
 
 	if old != &le.conn {
 		t.Fail()
@@ -67,7 +69,7 @@ func TestEnsureOpenConnectionCreatesNewConnection(t *testing.T) {
 
 	le.Close()
 
-	le.reopenConnection()
+	le.openConnection()
 
 	if le.isOpenConnection() == false {
 		t.Fail()
@@ -106,6 +108,22 @@ func TestSetPrefixSetsPrefix(t *testing.T) {
 	le.SetPrefix("myNewPrefix")
 
 	if le.prefix != "myNewPrefix" {
+		t.Fail()
+	}
+}
+
+func TestLoggerImplementsWriterInterface(t *testing.T) {
+	le, _ := Connect("myToken")
+
+	// the test will fail to compile if Logger doesn't implement io.Writer
+	func(w io.Writer) {}(le)
+}
+
+func TestReplaceNewline(t *testing.T) {
+	le, _ := Connect("myToken")
+	le.Println("1\n2\n3")
+
+	if strings.Count(string(le.buf), "\u2028") != 2 {
 		t.Fail()
 	}
 }
