@@ -168,7 +168,7 @@ func (logger *Logger) SetPrefix(prefix string) {
 
 // Write writes a bytes array to the Logentries TCP connection,
 // it adds the access token and prefix and also replaces
-// line breaks with the unicode \u2028 charachter
+// line breaks with the unicode \u2028 character
 func (logger *Logger) Write(p []byte) (n int, err error) {
 	if err := logger.ensureOpenConnection(); err != nil {
 		return 0, err
