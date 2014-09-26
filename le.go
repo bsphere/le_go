@@ -1,5 +1,7 @@
-// Package le_go provides a Golang library for logging to
-// logentries.com
+// Package le_go provides a Golang client library for logging to
+// logentries.com over a TCP connection.
+//
+// it uses an access token for sending log events.
 package le_go
 
 import (
@@ -11,6 +13,8 @@ import (
 	"time"
 )
 
+// Logger represents a Logentries logger,
+// it holds the open TCP connection, access token, prefix and flags
 type Logger struct {
 	conn   net.Conn
 	flag   int
@@ -22,7 +26,8 @@ type Logger struct {
 
 const lineSep = "\n"
 
-// Creates a new Logger instance and opens a TCP connection to logentries.com
+// Connte creates a new Logger instance and opens a TCP connection to
+// logentries.com,
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
 func Connect(token string) (*Logger, error) {
@@ -37,7 +42,7 @@ func Connect(token string) (*Logger, error) {
 	return &logger, nil
 }
 
-// Closes the TCP connection to logentries.com
+// Close closes the TCP connection to logentries.com
 func (logger *Logger) Close() error {
 	if logger.conn != nil {
 		return logger.conn.Close()
@@ -161,6 +166,9 @@ func (logger *Logger) SetPrefix(prefix string) {
 	logger.prefix = prefix
 }
 
+// Write writes a bytes array to the Logentries TCP connection,
+// it adds the access token and prefix and also replaces
+// line breaks with the unicode \u2028 charachter
 func (logger *Logger) Write(p []byte) (n int, err error) {
 	if err := logger.ensureOpenConnection(); err != nil {
 		return 0, err
