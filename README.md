@@ -1,9 +1,10 @@
-logentries
-=============
+le_go
+=====
 
-Golang library for logentries.com
+Golang client library for logentries.com
 
 It is compatible with http://golang.org/pkg/log/#Logger
+and also implements http://golang.org/pkg/io/#Writer
 
 [![GoDoc](https://godoc.org/github.com/bsphere/le_go?status.png)](https://godoc.org/github.com/bsphere/le_go)
 
