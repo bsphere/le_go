@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -19,6 +20,8 @@ type Logger struct {
 	buf    []byte
 }
 
+const lineSep = "\n"
+
 // Creates a new Logger instance and opens a TCP connection to logentries.com
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
@@ -27,7 +30,7 @@ func Connect(token string) (*Logger, error) {
 		token: token,
 	}
 
-	if err := logger.reopenConnection(); err != nil {
+	if err := logger.openConnection(); err != nil {
 		return nil, err
 	}
 
@@ -44,7 +47,7 @@ func (logger *Logger) Close() error {
 }
 
 // Opens a TCP connection to logentries.com
-func (logger *Logger) reopenConnection() error {
+func (logger *Logger) openConnection() error {
 	conn, err := net.Dial("tcp", "data.logentries.com:80")
 	if err != nil {
 		return err
@@ -83,7 +86,7 @@ func (logger *Logger) isOpenConnection() bool {
 // If the connection is closed, a new one is opened.
 func (logger *Logger) ensureOpenConnection() error {
 	if !logger.isOpenConnection() {
-		if err := logger.reopenConnection(); err != nil {
+		if err := logger.openConnection(); err != nil {
 			return err
 		}
 	}
@@ -111,19 +114,7 @@ func (logger *Logger) Flags() int {
 }
 
 func (logger *Logger) Output(calldepth int, s string) error {
-	if err := logger.ensureOpenConnection(); err != nil {
-		return err
-	}
-
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
-
-	logger.buf = logger.buf[:0]
-	logger.buf = append(logger.buf, (logger.token + " ")...)
-	logger.buf = append(logger.buf, (logger.prefix + " ")...)
-	logger.buf = append(logger.buf, s...)
-
-	_, err := logger.conn.Write(logger.buf)
+	_, err := logger.Write([]byte(s))
 
 	return err
 }
@@ -177,6 +168,9 @@ func (logger *Logger) Write(p []byte) (n int, err error) {
 
 	logger.mu.Lock()
 	defer logger.mu.Unlock()
+
+	count := strings.Count(string(p), lineSep)
+	p = []byte(strings.Replace(string(p), lineSep, "\u2028", count-1))
 
 	logger.buf = logger.buf[:0]
 	logger.buf = append(logger.buf, (logger.token + " ")...)
