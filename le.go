@@ -14,7 +14,11 @@ import (
 )
 
 // Logger represents a Logentries logger,
-// it holds the open TCP connection, access token, prefix and flags
+// it holds the open TCP connection, access token, prefix and flags.
+//
+// all Logger operations are thread safe and blocking,
+// log operations can be invoked in a non-blocking way by calling them from
+// a goroutine.
 type Logger struct {
 	conn   net.Conn
 	flag   int
@@ -26,7 +30,7 @@ type Logger struct {
 
 const lineSep = "\n"
 
-// Connte creates a new Logger instance and opens a TCP connection to
+// Connect creates a new Logger instance and opens a TCP connection to
 // logentries.com,
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
@@ -99,69 +103,83 @@ func (logger *Logger) ensureOpenConnection() error {
 	return nil
 }
 
+// Fatal is same as Print() but calls to os.Exit(1)
 func (logger *Logger) Fatal(v ...interface{}) {
 	logger.Output(2, fmt.Sprint(v...))
 	os.Exit(1)
 }
 
+// Fatalf is same as Printf() but calls to os.Exit(1)
 func (logger *Logger) Fatalf(format string, v ...interface{}) {
 	logger.Output(2, fmt.Sprintf(format, v...))
 	os.Exit(1)
 }
 
+// Fatalln is same as Println() but calls to os.Exit(1)
 func (logger *Logger) Fatalln(v ...interface{}) {
 	logger.Output(2, fmt.Sprintln(v...))
 	os.Exit(1)
 }
 
+// Flags returns the logger flags
 func (logger *Logger) Flags() int {
 	return logger.flag
 }
 
+// Output does the actual writing to the TCP connection
 func (logger *Logger) Output(calldepth int, s string) error {
 	_, err := logger.Write([]byte(s))
 
 	return err
 }
 
+// Panic is same as Print() but calls to panic
 func (logger *Logger) Panic(v ...interface{}) {
 	s := fmt.Sprint(v...)
 	logger.Output(2, s)
 	panic(s)
 }
 
+// Panicf is same as Printf() but calls to panic
 func (logger *Logger) Panicf(format string, v ...interface{}) {
 	s := fmt.Sprintf(format, v...)
 	logger.Output(2, s)
 	panic(s)
 }
 
+// Panicln is same as Println() but calls to panic
 func (logger *Logger) Panicln(v ...interface{}) {
 	s := fmt.Sprintln(v...)
 	logger.Output(2, s)
 	panic(s)
 }
 
+// Prefix returns the logger prefix
 func (logger *Logger) Prefix() string {
 	return logger.prefix
 }
 
+// Print logs a message
 func (logger *Logger) Print(v ...interface{}) {
 	logger.Output(2, fmt.Sprint(v...))
 }
 
+// Printf logs a formatted message
 func (logger *Logger) Printf(format string, v ...interface{}) {
 	logger.Output(2, fmt.Sprintf(format, v...))
 }
 
+// Println logs a message with a linebreak
 func (logger *Logger) Println(v ...interface{}) {
 	logger.Output(2, fmt.Sprintln(v...))
 }
 
+// SetFlags sets the logger flags
 func (logger *Logger) SetFlags(flag int) {
 	logger.flag = flag
 }
 
+// SetPrefix sets the logger prefix
 func (logger *Logger) SetPrefix(prefix string) {
 	logger.prefix = prefix
 }

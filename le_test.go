@@ -1,6 +1,7 @@
 package le_go
 
 import (
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -126,4 +127,26 @@ func TestReplaceNewline(t *testing.T) {
 	if strings.Count(string(le.buf), "\u2028") != 2 {
 		t.Fail()
 	}
+}
+
+func ExampleLogger() {
+	le, err := Connect("XXXX-XXXX-XXXX-XXXX") // replace with token
+	if err != nil {
+		panic(err)
+	}
+
+	defer le.Close()
+
+	le.Println("another test message")
+}
+
+func ExampleLogger_write() {
+	le, err := Connect("XXXX-XXXX-XXXX-XXXX") // replace with token
+	if err != nil {
+		panic(err)
+	}
+
+	defer le.Close()
+
+	fmt.Fprintln(le, "another test message")
 }
