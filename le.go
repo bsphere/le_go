@@ -200,6 +200,8 @@ func (logger *Logger) Write(p []byte) (n int, err error) {
 	return logger.conn.Write(logger.buf)
 }
 
+// makeBuf constructs the logger buffer
+// it is not safe to be used from within multiple concurrent goroutines
 func (logger *Logger) makeBuf(p []byte) {
 	count := strings.Count(string(p), lineSep)
 	p = []byte(strings.Replace(string(p), lineSep, "\u2028", count-1))
