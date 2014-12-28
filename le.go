@@ -203,5 +203,9 @@ func (logger *Logger) Write(p []byte) (n int, err error) {
 	logger.buf = append(logger.buf, (logger.prefix + " ")...)
 	logger.buf = append(logger.buf, p...)
 
+	if !strings.HasSuffix(string(logger.buf), lineSep) {
+		logger.buf = append(logger.buf, (lineSep)...)
+	}
+
 	return logger.conn.Write(logger.buf)
 }

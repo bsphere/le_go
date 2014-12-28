@@ -129,6 +129,21 @@ func TestReplaceNewline(t *testing.T) {
 	}
 }
 
+func TestAddNewline(t *testing.T) {
+	le, _ := Connect("myToken")
+	le.Print("123")
+
+	if !strings.HasSuffix(string(le.buf), "\n") {
+		t.Fail()
+	}
+
+	le.Printf("%s", "123")
+
+	if !strings.HasSuffix(string(le.buf), "\n") {
+		t.Fail()
+	}
+}
+
 func ExampleLogger() {
 	le, err := Connect("XXXX-XXXX-XXXX-XXXX") // replace with token
 	if err != nil {
