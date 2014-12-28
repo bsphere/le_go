@@ -195,6 +195,12 @@ func (logger *Logger) Write(p []byte) (n int, err error) {
 	logger.mu.Lock()
 	defer logger.mu.Unlock()
 
+	logger.makeBuf(p)
+
+	return logger.conn.Write(logger.buf)
+}
+
+func (logger *Logger) makeBuf(p []byte) {
 	count := strings.Count(string(p), lineSep)
 	p = []byte(strings.Replace(string(p), lineSep, "\u2028", count-1))
 
@@ -206,6 +212,4 @@ func (logger *Logger) Write(p []byte) (n int, err error) {
 	if !strings.HasSuffix(string(logger.buf), lineSep) {
 		logger.buf = append(logger.buf, (lineSep)...)
 	}
-
-	return logger.conn.Write(logger.buf)
 }

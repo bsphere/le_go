@@ -9,10 +9,11 @@ import (
 
 func TestConnectOpensConnection(t *testing.T) {
 	le, err := Connect("")
-
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
+
+	defer le.Close()
 
 	if le.conn == nil {
 		t.Fail()
@@ -24,7 +25,12 @@ func TestConnectOpensConnection(t *testing.T) {
 }
 
 func TestConnectSetsToken(t *testing.T) {
-	le, _ := Connect("myToken")
+	le, err := Connect("myToken")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer le.Close()
 
 	if le.token != "myToken" {
 		t.Fail()
@@ -32,7 +38,10 @@ func TestConnectSetsToken(t *testing.T) {
 }
 
 func TestCloseClosesConnection(t *testing.T) {
-	le, _ := Connect("")
+	le, err := Connect("")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	le.Close()
 
@@ -42,9 +51,12 @@ func TestCloseClosesConnection(t *testing.T) {
 }
 
 func TestOpenConnectionOpensConnection(t *testing.T) {
-	le, _ := Connect("")
+	le, err := Connect("")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	le.Close()
+	defer le.Close()
 
 	le.openConnection()
 
@@ -54,8 +66,12 @@ func TestOpenConnectionOpensConnection(t *testing.T) {
 }
 
 func TestEnsureOpenConnectionDoesNothingOnOpenConnection(t *testing.T) {
-	le, _ := Connect("")
+	le, err := Connect("")
+	if err != nil {
+		t.Fatal(err)
+	}
 
+	defer le.Close()
 	old := &le.conn
 
 	le.openConnection()
@@ -66,9 +82,12 @@ func TestEnsureOpenConnectionDoesNothingOnOpenConnection(t *testing.T) {
 }
 
 func TestEnsureOpenConnectionCreatesNewConnection(t *testing.T) {
-	le, _ := Connect("")
+	le, err := Connect("")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	le.Close()
+	defer le.Close()
 
 	le.openConnection()
 
@@ -114,14 +133,25 @@ func TestSetPrefixSetsPrefix(t *testing.T) {
 }
 
 func TestLoggerImplementsWriterInterface(t *testing.T) {
-	le, _ := Connect("myToken")
+	le, err := Connect("myToken")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer le.Close()
 
 	// the test will fail to compile if Logger doesn't implement io.Writer
 	func(w io.Writer) {}(le)
 }
 
 func TestReplaceNewline(t *testing.T) {
-	le, _ := Connect("myToken")
+	le, err := Connect("myToken")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer le.Close()
+
 	le.Println("1\n2\n3")
 
 	if strings.Count(string(le.buf), "\u2028") != 2 {
@@ -130,7 +160,13 @@ func TestReplaceNewline(t *testing.T) {
 }
 
 func TestAddNewline(t *testing.T) {
-	le, _ := Connect("myToken")
+	le, err := Connect("myToken")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer le.Close()
+
 	le.Print("123")
 
 	if !strings.HasSuffix(string(le.buf), "\n") {
@@ -164,4 +200,29 @@ func ExampleLogger_write() {
 	defer le.Close()
 
 	fmt.Fprintln(le, "another test message")
+}
+
+func BenchmarkMakeBuf(b *testing.B) {
+	le := Logger{token: "token"}
+
+	for i := 0; i < b.N; i++ {
+		le.makeBuf([]byte("test\nstring\n"))
+	}
+}
+
+func BenchmarkMakeBufWithoutNewlineSuffix(b *testing.B) {
+	le := Logger{token: "token"}
+
+	for i := 0; i < b.N; i++ {
+		le.makeBuf([]byte("test\nstring"))
+	}
+}
+
+func BenchmarkMakeBufWithPrefix(b *testing.B) {
+	le := Logger{token: "token"}
+	le.SetPrefix("prefix")
+
+	for i := 0; i < b.N; i++ {
+		le.makeBuf([]byte("test\nstring\n"))
+	}
 }
