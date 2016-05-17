@@ -59,7 +59,7 @@ func (logger *Logger) Close() error {
 // Opens a TCP connection to logentries.com
 func (logger *Logger) openConnection() error {
 	config := tls.Config{}
-	conn, err := tls.Dial("tcp", "data.logentries.com:443")
+	conn, err := tls.Dial("tcp", "data.logentries.com:443". &config)
 	if err != nil {
 		return err
 	}
