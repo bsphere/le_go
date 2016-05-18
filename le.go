@@ -6,6 +6,8 @@ package le_go
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -58,7 +60,13 @@ func (logger *Logger) Close() error {
 
 // Opens a TCP connection to logentries.com
 func (logger *Logger) openConnection() error {
-	config := tls.Config{}
+	pool := x509.NewCertPool()
+
+	if ok := pool.AppendCertsFromPEM(pemCerts); !ok {
+		return errors.New("failed to parse certs")
+	}
+
+	config := tls.Config{RootCAs: pool}
 	conn, err := tls.Dial("tcp", "data.logentries.com:443", &config)
 	if err != nil {
 		return err
