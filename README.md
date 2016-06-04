@@ -19,8 +19,9 @@ Installation: `go get github.com/bsphere/le_go`
 **Note:** The Logger is blocking, it can be easily run in a goroutine by calling `go le.Println(...)`
 
 ```go
-import (
-	"github.com/bsphere/le_go"
+package main
+
+import "github.com/bsphere/le_go"
 
 func main() {
 	le, err := le_go.Connect("XXXX-XXXX-XXXX-XXXX") // replace with token
