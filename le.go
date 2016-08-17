@@ -80,6 +80,7 @@ func (logger *Logger) openConnection() error {
 // It returns if the TCP connection to logentries.com is open
 func (logger *Logger) isOpenConnection() bool {
 	if logger.conn == nil {
+		fmt.Println("le_go: isOpenConnection() conn is nil.")
 		return false
 	}
 
@@ -98,6 +99,7 @@ func (logger *Logger) isOpenConnection() bool {
 		}
 	}
 
+	fmt.Printf("le_go: isOpenConnection() got error other than timeout: %s", err)
 	return false
 }
 
@@ -105,7 +107,9 @@ func (logger *Logger) isOpenConnection() bool {
 // If the connection is closed, a new one is opened.
 func (logger *Logger) ensureOpenConnection() error {
 	if !logger.isOpenConnection() {
+		fmt.Println("le_go: ensureOpenConnection() detected closed connection")
 		if err := logger.openConnection(); err != nil {
+			fmt.Printf("le_go: ensureOpenConnection() error opening connection: %s", err)
 			return err
 		}
 	}
@@ -199,6 +203,7 @@ func (logger *Logger) SetPrefix(prefix string) {
 // line breaks with the unicode \u2028 character
 func (logger *Logger) Write(p []byte) (n int, err error) {
 	if err := logger.ensureOpenConnection(); err != nil {
+		fmt.Printf("le_go: Write() failed on checking ensureOpenConnection(): %s", err)
 		return 0, err
 	}
 
