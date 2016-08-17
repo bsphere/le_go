@@ -38,6 +38,7 @@ const lineSep = "\n"
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
 func Connect(token string) (*Logger, error) {
+	fmt.Println("le_go: Connect()")
 	logger := Logger{
 		token: token,
 	}
@@ -51,6 +52,7 @@ func Connect(token string) (*Logger, error) {
 
 // Close closes the TCP connection to logentries.com
 func (logger *Logger) Close() error {
+	fmt.Println("le_go: Close()")
 	if logger.conn != nil {
 		return logger.conn.Close()
 	}
@@ -202,6 +204,7 @@ func (logger *Logger) SetPrefix(prefix string) {
 // it adds the access token and prefix and also replaces
 // line breaks with the unicode \u2028 character
 func (logger *Logger) Write(p []byte) (n int, err error) {
+	fmt.Println("le_go: Write()")
 	if err := logger.ensureOpenConnection(); err != nil {
 		fmt.Printf("le_go: Write() failed on checking ensureOpenConnection(): %s", err)
 		return 0, err
@@ -212,7 +215,11 @@ func (logger *Logger) Write(p []byte) (n int, err error) {
 
 	logger.makeBuf(p)
 
-	return logger.conn.Write(logger.buf)
+	n, err = logger.conn.Write(logger.buf)
+	if err != nil {
+		fmt.Printf("le_go: Write n=%d, err=%s", n, err.Error())
+	}
+	return
 }
 
 // makeBuf constructs the logger buffer
