@@ -6,8 +6,6 @@ package le_go
 
 import (
 	"crypto/tls"
-	"crypto/x509"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -60,18 +58,11 @@ func (logger *Logger) Close() error {
 
 // Opens a TCP connection to logentries.com
 func (logger *Logger) openConnection() error {
-	pool, err := x509.SystemCertPool()
-	if err != nil {
-		return errors.New("failed add root certs")
-	}
-	config := tls.Config{RootCAs: pool}
-	conn, err := tls.Dial("tcp", "data.logentries.com:443", &config)
+	conn, err := tls.Dial("tcp", "data.logentries.com:443", &tls.Config{})
 	if err != nil {
 		return err
 	}
-
 	logger.conn = conn
-
 	return nil
 }
 
