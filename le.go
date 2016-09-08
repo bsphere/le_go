@@ -60,11 +60,11 @@ func (logger *Logger) Close() error {
 
 // Opens a TCP connection to logentries.com
 func (logger *Logger) openConnection() error {
-	rootPool, err := x509.SystemCertPool()
+	pool, err := x509.SystemCertPool()
 	if err != nil {
 		return errors.New("failed add root certs")
 	}
-	config := tls.Config{RootCAs: rootPool}
+	config := tls.Config{RootCAs: pool}
 	conn, err := tls.Dial("tcp", "data.logentries.com:443", &config)
 	if err != nil {
 		return err
