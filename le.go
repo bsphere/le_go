@@ -60,13 +60,11 @@ func (logger *Logger) Close() error {
 
 // Opens a TCP connection to logentries.com
 func (logger *Logger) openConnection() error {
-	pool := x509.NewCertPool()
-
-	if ok := pool.AppendCertsFromPEM(pemCerts); !ok {
-		return errors.New("failed to parse certs")
+	rootPool, err := x509.SystemCertPool()
+	if err != nil {
+		return errors.New("failed add root certs")
 	}
-
-	config := tls.Config{RootCAs: pool}
+	config := tls.Config{RootCAs: rootPool}
 	conn, err := tls.Dial("tcp", "data.logentries.com:443", &config)
 	if err != nil {
 		return err
