@@ -138,9 +138,21 @@ func (logger *Logger) Flags() int {
 
 // Output does the actual writing to the TCP connection
 func (logger *Logger) Output(calldepth int, s string) error {
-	_, err := logger.Write([]byte(s))
-
-	return err
+	var err error
+	for {
+		_, err = logger.Write([]byte(s))
+		if err != nil {
+			fmt.Printf("go_le error: %v\n\tTrying to recover...", err)
+			if err := logger.openConnection(); err != nil {
+				fmt.Printf(" ERROR! Unable to recover: %v\n", err)
+				return err
+			} else {
+				fmt.Printf(" DONE! A new TCP connection has been established.\n")
+				continue
+			}
+		}
+		return err
+	}
 }
 
 // Panic is same as Print() but calls to panic
@@ -170,18 +182,18 @@ func (logger *Logger) Prefix() string {
 }
 
 // Print logs a message
-func (logger *Logger) Print(v ...interface{}) {
-	logger.Output(2, fmt.Sprint(v...))
+func (logger *Logger) Print(v ...interface{}) error {
+	return logger.Output(2, fmt.Sprint(v...))
 }
 
 // Printf logs a formatted message
-func (logger *Logger) Printf(format string, v ...interface{}) {
-	logger.Output(2, fmt.Sprintf(format, v...))
+func (logger *Logger) Printf(format string, v ...interface{}) error {
+	return logger.Output(2, fmt.Sprintf(format, v...))
 }
 
 // Println logs a message with a linebreak
-func (logger *Logger) Println(v ...interface{}) {
-	logger.Output(2, fmt.Sprintln(v...))
+func (logger *Logger) Println(v ...interface{}) error {
+	return logger.Output(2, fmt.Sprintln(v...))
 }
 
 // SetFlags sets the logger flags
