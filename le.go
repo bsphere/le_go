@@ -138,18 +138,19 @@ func (logger *Logger) Flags() int {
 
 // Output does the actual writing to the TCP connection
 func (logger *Logger) Output(calldepth int, s string) error {
-	var err error
+	var (
+		err        error
+		waitPeriod = time.Millisecond
+	)
 	for {
 		_, err = logger.Write([]byte(s))
 		if err != nil {
-			fmt.Printf("go_le error: %v\n\tTrying to recover...", err)
-			if err := logger.openConnection(); err != nil {
-				fmt.Printf(" ERROR! Unable to recover: %v\n", err)
-				return err
-			} else {
-				fmt.Printf(" DONE! A new TCP connection has been established.\n")
-				continue
+			if connectionErr := logger.openConnection(); connectionErr != nil {
+				return connectionErr
 			}
+			waitPeriod *= 2
+			time.Sleep(waitPeriod)
+			continue
 		}
 		return err
 	}
@@ -210,11 +211,10 @@ func (logger *Logger) SetPrefix(prefix string) {
 // it adds the access token and prefix and also replaces
 // line breaks with the unicode \u2028 character
 func (logger *Logger) Write(p []byte) (n int, err error) {
+	logger.mu.Lock()
 	if err := logger.ensureOpenConnection(); err != nil {
 		return 0, err
 	}
-
-	logger.mu.Lock()
 	defer logger.mu.Unlock()
 
 	logger.makeBuf(p)
