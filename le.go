@@ -10,9 +10,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
-	"sync"
-	"time"
 )
 
 // Logger represents a Logentries logger,
@@ -29,10 +26,11 @@ type Logger struct {
 }
 
 const (
-	asciiLineSep   = 0x0A                     // "\n"
-	asciiSpace     = 0x20                     // " "
-	unicodeLineSep = []byte{0xE2, 0x80, 0xA8} // "\u2028"
+	asciiLineSep = 0x0A // "\n"
+	asciiSpace   = 0x20 // " "
 )
+
+var unicodeLineSep = []byte{0xE2, 0x80, 0xA8} // "\u2028"
 
 // Connect creates a new Logger instance and opens a TCP connection to
 // logentries.com,
@@ -77,7 +75,7 @@ func (logger *Logger) reopenConnection() error {
 
 	if err := logger.Close(); err != nil {
 		fmt.Printf("le_go: reopenConnection() error closing connection: %s", err)
-		// Open a new connection anyway
+		// Continue to open a new connection anyway
 	}
 
 	if err := logger.openConnection(); err != nil {
@@ -172,20 +170,30 @@ func (logger *Logger) SetPrefix(prefix string) {
 // Write writes a bytes array to the Logentries TCP connection,
 // it adds the access token and prefix and also replaces
 // line breaks with the unicode \u2028 character
-func (logger *Logger) Write(p []byte) (n int, err error) {
+func (logger *Logger) Write(p []byte) (int, error) {
 	fmt.Println("le_go: Write()")
 
 	buf := logger.makeBuf(p)
 
+	n, err := logger.conn.Write(buf)
+	if err == nil {
+		return n, err
+	}
+	fmt.Printf("le_go: Write n=%d, err=%s", n, err.Error())
+
+	// First write failed.  Try reconnecting and then a second write; if that fails give up.  If
+	// we wanted to keep trying we would have to maintain a queue and a separate goroutine.
+	if err = logger.reopenConnection(); err != nil {
+		return 0, err
+	}
 	n, err = logger.conn.Write(buf)
 	if err != nil {
 		fmt.Printf("le_go: Write n=%d, err=%s", n, err.Error())
-		// FIXME Retry (once!) on error
 	}
-	return
+	return n, err
 }
 
-// bytes has an IndexByte but no CountByte
+// bytes.IndexByte exists but not bytes.CountByte
 func countByte(s []byte, c byte) int {
 	return bytes.Count(s, []byte{c})
 }
@@ -193,15 +201,17 @@ func countByte(s []byte, c byte) int {
 // makeBuf constructs the logger buffer
 func (logger *Logger) makeBuf(p []byte) []byte {
 	// Pre-allocate a buffer of the correct size
-	capacity := len(logger.token) + 1 + len(logger.prefix) + 1 // header
-	capacity += len(p)                                         // nominal payload size (before replacement)
-	capacity += countByte(p, asciiLineSep) * 2                 // 1-byte "\n"s replaced with 3-byte "\u2028"s
-	capacity += 1                                              // trailing newline
+	capacity := len(logger.token) + 1
+	capacity += len(logger.prefix) + 1
+	capacity += len(p)                         // nominal payload size (before replacement)
+	capacity += countByte(p, asciiLineSep) * 2 // 1-byte "\n"s replaced with 3-byte "\u2028"s
+	capacity += 1                              // trailing newline
 	buf := make([]byte, 0, capacity)
 
 	// Buffer header
 	buf = append(buf, logger.token...)
-	buf = append(buf, asciiSpace, logger.prefix...)
+	buf = append(buf, asciiSpace)
+	buf = append(buf, logger.prefix...)
 	buf = append(buf, asciiSpace)
 
 	// We need to convert the "\n" runes into unicode "\u2028" line separators.  This is done at
@@ -219,7 +229,7 @@ func (logger *Logger) makeBuf(p []byte) []byte {
 	}
 
 	// Buffer must end with an ascii line separator
-	buf = append(logger.buf, asciiLineSep)
+	buf = append(buf, asciiLineSep)
 
 	return buf
 }
