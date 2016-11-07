@@ -5,13 +5,11 @@
 package le_go
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
-	"strings"
-	"sync"
-	"time"
 )
 
 // Logger represents a Logentries logger,
@@ -23,19 +21,23 @@ import (
 type Logger struct {
 	conn   net.Conn
 	flag   int
-	mu     sync.Mutex
 	prefix string
 	token  string
-	buf    []byte
 }
 
-const lineSep = "\n"
+const (
+	asciiLineSep = 0x0A // "\n"
+	asciiSpace   = 0x20 // " "
+)
+
+var unicodeLineSep = []byte{0xE2, 0x80, 0xA8} // "\u2028"
 
 // Connect creates a new Logger instance and opens a TCP connection to
 // logentries.com,
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
 func Connect(token string) (*Logger, error) {
+	fmt.Println("le_go: Connect()")
 	logger := Logger{
 		token: token,
 	}
@@ -49,6 +51,7 @@ func Connect(token string) (*Logger, error) {
 
 // Close closes the TCP connection to logentries.com
 func (logger *Logger) Close() error {
+	fmt.Println("le_go: Close()")
 	if logger.conn != nil {
 		return logger.conn.Close()
 	}
@@ -66,37 +69,18 @@ func (logger *Logger) openConnection() error {
 	return nil
 }
 
-// It returns if the TCP connection to logentries.com is open
-func (logger *Logger) isOpenConnection() bool {
-	if logger.conn == nil {
-		return false
+// Closes the TCP connection to logentries.com and opens a new one
+func (logger *Logger) reopenConnection() error {
+	fmt.Println("le_go: reopenConnection()")
+
+	if err := logger.Close(); err != nil {
+		fmt.Printf("le_go: reopenConnection() error closing connection: %s", err)
+		// Continue to open a new connection anyway
 	}
 
-	buf := make([]byte, 1)
-
-	logger.conn.SetReadDeadline(time.Now())
-
-	_, err := logger.conn.Read(buf)
-
-	switch err.(type) {
-	case net.Error:
-		if err.(net.Error).Timeout() == true {
-			logger.conn.SetReadDeadline(time.Time{})
-
-			return true
-		}
-	}
-
-	return false
-}
-
-// It ensures that the TCP connection to logentries.com is open.
-// If the connection is closed, a new one is opened.
-func (logger *Logger) ensureOpenConnection() error {
-	if !logger.isOpenConnection() {
-		if err := logger.openConnection(); err != nil {
-			return err
-		}
+	if err := logger.openConnection(); err != nil {
+		fmt.Printf("le_go: reopenConnection() error opening connection: %s", err)
+		return err
 	}
 
 	return nil
@@ -186,31 +170,66 @@ func (logger *Logger) SetPrefix(prefix string) {
 // Write writes a bytes array to the Logentries TCP connection,
 // it adds the access token and prefix and also replaces
 // line breaks with the unicode \u2028 character
-func (logger *Logger) Write(p []byte) (n int, err error) {
-	if err := logger.ensureOpenConnection(); err != nil {
+func (logger *Logger) Write(p []byte) (int, error) {
+	fmt.Println("le_go: Write()")
+
+	buf := logger.makeBuf(p)
+
+	n, err := logger.conn.Write(buf)
+	if err == nil {
+		return n, err
+	}
+	fmt.Printf("le_go: Write n=%d, err=%s", n, err.Error())
+
+	// First write failed.  Try reconnecting and then a second write; if that fails give up.  If
+	// we wanted to keep trying we would have to maintain a queue and a separate goroutine.
+	if err = logger.reopenConnection(); err != nil {
 		return 0, err
 	}
+	n, err = logger.conn.Write(buf)
+	if err != nil {
+		fmt.Printf("le_go: Write n=%d, err=%s", n, err.Error())
+	}
+	return n, err
+}
 
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
-
-	logger.makeBuf(p)
-
-	return logger.conn.Write(logger.buf)
+// bytes.IndexByte exists but not bytes.CountByte
+func countByte(s []byte, c byte) int {
+	return bytes.Count(s, []byte{c})
 }
 
 // makeBuf constructs the logger buffer
-// it is not safe to be used from within multiple concurrent goroutines
-func (logger *Logger) makeBuf(p []byte) {
-	count := strings.Count(string(p), lineSep)
-	p = []byte(strings.Replace(string(p), lineSep, "\u2028", count-1))
+func (logger *Logger) makeBuf(p []byte) []byte {
+	// Pre-allocate a buffer of the correct size
+	capacity := len(logger.token) + 1
+	capacity += len(logger.prefix) + 1
+	capacity += len(p)                         // nominal payload size (before replacement)
+	capacity += countByte(p, asciiLineSep) * 2 // 1-byte "\n"s replaced with 3-byte "\u2028"s
+	capacity += 1                              // trailing newline
+	buf := make([]byte, 0, capacity)
 
-	logger.buf = logger.buf[:0]
-	logger.buf = append(logger.buf, (logger.token + " ")...)
-	logger.buf = append(logger.buf, (logger.prefix + " ")...)
-	logger.buf = append(logger.buf, p...)
+	// Buffer header
+	buf = append(buf, logger.token...)
+	buf = append(buf, asciiSpace)
+	buf = append(buf, logger.prefix...)
+	buf = append(buf, asciiSpace)
 
-	if !strings.HasSuffix(string(logger.buf), lineSep) {
-		logger.buf = append(logger.buf, (lineSep)...)
+	// We need to convert the "\n" runes into unicode "\u2028" line separators.  This is done at
+	// the byte level to avoid copying data back and forth from strings.
+	for {
+		i := bytes.IndexByte(p, asciiLineSep)
+		if i < 0 {
+			buf = append(buf, p...)
+			break
+		}
+
+		buf = append(buf, p[:i]...)
+		buf = append(buf, unicodeLineSep...)
+		p = p[i+1:]
 	}
+
+	// Buffer must end with an ascii line separator
+	buf = append(buf, asciiLineSep)
+
+	return buf
 }
