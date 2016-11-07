@@ -18,10 +18,6 @@ func TestConnectOpensConnection(t *testing.T) {
 	if le.conn == nil {
 		t.Fail()
 	}
-
-	if le.isOpenConnection() == false {
-		t.Fail()
-	}
 }
 
 func TestConnectSetsToken(t *testing.T) {
@@ -45,7 +41,7 @@ func TestCloseClosesConnection(t *testing.T) {
 
 	le.Close()
 
-	if le.isOpenConnection() == true {
+	if le.conn != nil {
 		t.Fail()
 	}
 }
@@ -60,7 +56,7 @@ func TestOpenConnectionOpensConnection(t *testing.T) {
 
 	le.openConnection()
 
-	if le.isOpenConnection() == false {
+	if le.conn == nil {
 		t.Fail()
 	}
 }
@@ -91,7 +87,7 @@ func TestEnsureOpenConnectionCreatesNewConnection(t *testing.T) {
 
 	le.openConnection()
 
-	if le.isOpenConnection() == false {
+	if le.conn == nil {
 		t.Fail()
 	}
 }
@@ -152,9 +148,9 @@ func TestReplaceNewline(t *testing.T) {
 
 	defer le.Close()
 
-	le.Println("1\n2\n3")
+	buf := le.makeBuf([]byte("1\n2\n3"))
 
-	if strings.Count(string(le.buf), "\u2028") != 2 {
+	if strings.Count(string(buf), "\u2028") != 2 {
 		t.Fail()
 	}
 }
@@ -167,15 +163,9 @@ func TestAddNewline(t *testing.T) {
 
 	defer le.Close()
 
-	le.Print("123")
+	buf := le.makeBuf([]byte("123"))
 
-	if !strings.HasSuffix(string(le.buf), "\n") {
-		t.Fail()
-	}
-
-	le.Printf("%s", "123")
-
-	if !strings.HasSuffix(string(le.buf), "\n") {
+	if !strings.HasSuffix(string(buf), "\n") {
 		t.Fail()
 	}
 }

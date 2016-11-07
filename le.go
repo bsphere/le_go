@@ -53,7 +53,9 @@ func Connect(token string) (*Logger, error) {
 func (logger *Logger) Close() error {
 	fmt.Println("le_go: Close()")
 	if logger.conn != nil {
-		return logger.conn.Close()
+		err := logger.conn.Close()
+		logger.conn = nil
+		return err
 	}
 
 	return nil
@@ -74,12 +76,12 @@ func (logger *Logger) reopenConnection() error {
 	fmt.Println("le_go: reopenConnection()")
 
 	if err := logger.Close(); err != nil {
-		fmt.Printf("le_go: reopenConnection() error closing connection: %s", err)
+		fmt.Printf("le_go: reopenConnection() error closing connection: %s\n", err)
 		// Continue to open a new connection anyway
 	}
 
 	if err := logger.openConnection(); err != nil {
-		fmt.Printf("le_go: reopenConnection() error opening connection: %s", err)
+		fmt.Printf("le_go: reopenConnection() error opening connection: %s\n", err)
 		return err
 	}
 
@@ -171,15 +173,14 @@ func (logger *Logger) SetPrefix(prefix string) {
 // it adds the access token and prefix and also replaces
 // line breaks with the unicode \u2028 character
 func (logger *Logger) Write(p []byte) (int, error) {
-	fmt.Println("le_go: Write()")
-
 	buf := logger.makeBuf(p)
+	fmt.Printf("le_go: Write '%s'\n", string(buf[:20]))
 
 	n, err := logger.conn.Write(buf)
 	if err == nil {
 		return n, err
 	}
-	fmt.Printf("le_go: Write n=%d, err=%s", n, err.Error())
+	fmt.Printf("le_go: Write n=%d, err=%s\n", n, err.Error())
 
 	// First write failed.  Try reconnecting and then a second write; if that fails give up.  If
 	// we wanted to keep trying we would have to maintain a queue and a separate goroutine.
@@ -188,7 +189,7 @@ func (logger *Logger) Write(p []byte) (int, error) {
 	}
 	n, err = logger.conn.Write(buf)
 	if err != nil {
-		fmt.Printf("le_go: Write n=%d, err=%s", n, err.Error())
+		fmt.Printf("le_go: Write n=%d, err=%s\n", n, err.Error())
 	}
 	return n, err
 }
