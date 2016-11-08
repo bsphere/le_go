@@ -37,7 +37,6 @@ var unicodeLineSep = []byte{0xE2, 0x80, 0xA8} // "\u2028"
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
 func Connect(token string) (*Logger, error) {
-	fmt.Println("le_go: Connect()")
 	logger := Logger{
 		token: token,
 	}
@@ -51,7 +50,6 @@ func Connect(token string) (*Logger, error) {
 
 // Close closes the TCP connection to logentries.com
 func (logger *Logger) Close() error {
-	fmt.Println("le_go: Close()")
 	if logger.conn != nil {
 		err := logger.conn.Close()
 		logger.conn = nil
@@ -73,19 +71,10 @@ func (logger *Logger) openConnection() error {
 
 // Closes the TCP connection to logentries.com and opens a new one
 func (logger *Logger) reopenConnection() error {
-	fmt.Println("le_go: reopenConnection()")
+	// Continue even if Close fails
+	logger.Close()
 
-	if err := logger.Close(); err != nil {
-		fmt.Printf("le_go: reopenConnection() error closing connection: %s\n", err)
-		// Continue to open a new connection anyway
-	}
-
-	if err := logger.openConnection(); err != nil {
-		fmt.Printf("le_go: reopenConnection() error opening connection: %s\n", err)
-		return err
-	}
-
-	return nil
+	return logger.openConnection()
 }
 
 // Fatal is same as Print() but calls to os.Exit(1)
@@ -174,13 +163,11 @@ func (logger *Logger) SetPrefix(prefix string) {
 // line breaks with the unicode \u2028 character
 func (logger *Logger) Write(p []byte) (int, error) {
 	buf := logger.makeBuf(p)
-	fmt.Printf("le_go: Write '%s'\n", string(buf[:20]))
 
 	n, err := logger.conn.Write(buf)
 	if err == nil {
 		return n, err
 	}
-	fmt.Printf("le_go: Write n=%d, err=%s\n", n, err.Error())
 
 	// First write failed.  Try reconnecting and then a second write; if that fails give up.  If
 	// we wanted to keep trying we would have to maintain a queue and a separate goroutine.
@@ -188,9 +175,6 @@ func (logger *Logger) Write(p []byte) (int, error) {
 		return 0, err
 	}
 	n, err = logger.conn.Write(buf)
-	if err != nil {
-		fmt.Printf("le_go: Write n=%d, err=%s\n", n, err.Error())
-	}
 	return n, err
 }
 
