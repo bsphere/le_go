@@ -33,6 +33,28 @@ func TestConnectSetsToken(t *testing.T) {
 	}
 }
 
+func TestWriteReopensConnection(t *testing.T) {
+	le, err := Connect("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldConn := le.conn
+	err = le.conn.Close()
+	if err != nil {
+		t.Fail()
+	}
+
+	written, err := le.Write([]byte("should reopen"))
+	if written != 16 || err != nil {
+		t.Error(written, err)
+	}
+
+	if le.conn == oldConn {
+		t.Fail()
+	}
+}
+
 func TestCloseClosesConnection(t *testing.T) {
 	le, err := Connect("")
 	if err != nil {
