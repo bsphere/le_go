@@ -21,7 +21,7 @@ import (
 // log operations can be invoked in a non-blocking way by calling them from
 // a goroutine.
 type Logger struct {
-	conn   net.Conn
+	conn   net.Conn // nil if this logger is closed and should not reopen
 	flag   int
 	mu     sync.Mutex
 	prefix string
@@ -180,10 +180,8 @@ func (logger *Logger) Write(p []byte) (int, error) {
 	// First write failed.  Try reconnecting and then a second write; if that fails give up.  If
 	// we wanted to keep trying we would have to maintain a queue and a separate goroutine.
 
-	// Ignore errors closing
+	// Ignore errors closing (including "already closed")
 	logger.conn.Close()
-	logger.conn = nil
-
 	newConn, err := openConnection()
 	if err != nil {
 		return 0, err
