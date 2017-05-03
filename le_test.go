@@ -46,7 +46,7 @@ func TestWriteReopensConnection(t *testing.T) {
 	}
 
 	written, err := le.Write([]byte("should reopen"))
-	if written != 16 || err != nil {
+	if written != 13 || err != nil {
 		t.Error(written, err)
 	}
 

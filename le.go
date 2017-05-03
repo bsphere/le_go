@@ -172,9 +172,9 @@ func (logger *Logger) Write(p []byte) (int, error) {
 		return 0, ErrClosed
 	}
 
-	n, err := logger.conn.Write(buf)
+	_, err := logger.conn.Write(buf)
 	if err == nil {
-		return n, nil
+		return len(p), nil
 	}
 
 	// First write failed.  Try reconnecting and then a second write; if that fails give up.  If
@@ -188,8 +188,8 @@ func (logger *Logger) Write(p []byte) (int, error) {
 	}
 	logger.conn = newConn
 
-	n, err = logger.conn.Write(buf)
-	return n, err
+	_, err = logger.conn.Write(buf)
+	return len(p), err
 }
 
 // bytes.IndexByte exists but not bytes.CountByte
