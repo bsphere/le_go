@@ -7,9 +7,11 @@ package le_go
 import (
 	"bytes"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"sync"
 )
 
 // Logger represents a Logentries logger,
@@ -19,8 +21,9 @@ import (
 // log operations can be invoked in a non-blocking way by calling them from
 // a goroutine.
 type Logger struct {
-	conn   net.Conn
+	conn   net.Conn // nil if this logger is closed and should not reopen
 	flag   int
+	mu     sync.Mutex
 	prefix string
 	token  string
 }
@@ -32,49 +35,45 @@ const (
 
 var unicodeLineSep = []byte{0xE2, 0x80, 0xA8} // "\u2028"
 
+var (
+	ErrClosed = errors.New("le: use of closed connection")
+)
+
 // Connect creates a new Logger instance and opens a TCP connection to
 // logentries.com,
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
 func Connect(token string) (*Logger, error) {
-	logger := Logger{
-		token: token,
-	}
-
-	if err := logger.openConnection(); err != nil {
+	conn, err := openConnection()
+	if err != nil {
 		return nil, err
 	}
 
+	logger := Logger{
+		conn:  conn,
+		token: token,
+	}
 	return &logger, nil
 }
 
 // Close closes the TCP connection to logentries.com
 func (logger *Logger) Close() error {
-	if logger.conn != nil {
-		err := logger.conn.Close()
-		logger.conn = nil
-		return err
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
+
+	if logger.conn == nil {
+		return ErrClosed
 	}
 
-	return nil
+	err := logger.conn.Close()
+	logger.conn = nil
+	return err
 }
 
 // Opens a TCP connection to logentries.com
-func (logger *Logger) openConnection() error {
+func openConnection() (net.Conn, error) {
 	conn, err := tls.Dial("tcp", "data.logentries.com:443", &tls.Config{})
-	if err != nil {
-		return err
-	}
-	logger.conn = conn
-	return nil
-}
-
-// Closes the TCP connection to logentries.com and opens a new one
-func (logger *Logger) reopenConnection() error {
-	// Continue even if Close fails
-	logger.Close()
-
-	return logger.openConnection()
+	return conn, err
 }
 
 // Fatal is same as Print() but calls to os.Exit(1)
@@ -162,20 +161,35 @@ func (logger *Logger) SetPrefix(prefix string) {
 // it adds the access token and prefix and also replaces
 // line breaks with the unicode \u2028 character
 func (logger *Logger) Write(p []byte) (int, error) {
+	// Construct the message once, outside of any mutex
 	buf := logger.makeBuf(p)
 
-	n, err := logger.conn.Write(buf)
+	// Accessing logger.conn must be done with a mutex
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
+
+	if logger.conn == nil {
+		return 0, ErrClosed
+	}
+
+	_, err := logger.conn.Write(buf)
 	if err == nil {
-		return n, err
+		return len(p), nil
 	}
 
 	// First write failed.  Try reconnecting and then a second write; if that fails give up.  If
 	// we wanted to keep trying we would have to maintain a queue and a separate goroutine.
-	if err = logger.reopenConnection(); err != nil {
+
+	// Ignore errors closing (including "already closed")
+	logger.conn.Close()
+	newConn, err := openConnection()
+	if err != nil {
 		return 0, err
 	}
-	n, err = logger.conn.Write(buf)
-	return n, err
+	logger.conn = newConn
+
+	_, err = logger.conn.Write(buf)
+	return len(p), err
 }
 
 // bytes.IndexByte exists but not bytes.CountByte

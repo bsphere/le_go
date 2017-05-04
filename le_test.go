@@ -33,62 +33,51 @@ func TestConnectSetsToken(t *testing.T) {
 	}
 }
 
+func TestWriteReopensConnection(t *testing.T) {
+	le, err := Connect("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldConn := le.conn
+	err = le.conn.Close()
+	if err != nil {
+		t.Fail()
+	}
+
+	written, err := le.Write([]byte("should reopen"))
+	if written != 13 || err != nil {
+		t.Error(written, err)
+	}
+
+	if le.conn == oldConn {
+		t.Fail()
+	}
+}
+
 func TestCloseClosesConnection(t *testing.T) {
 	le, err := Connect("")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	le.Close()
+	err = le.Close()
+	if err != nil {
+		t.Fail()
+	}
 
 	if le.conn != nil {
 		t.Fail()
 	}
-}
 
-func TestOpenConnectionOpensConnection(t *testing.T) {
-	le, err := Connect("")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer le.Close()
-
-	le.openConnection()
-
-	if le.conn == nil {
+	err = le.Close()
+	if err != ErrClosed {
 		t.Fail()
 	}
-}
 
-func TestEnsureOpenConnectionDoesNothingOnOpenConnection(t *testing.T) {
-	le, err := Connect("")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer le.Close()
-	old := &le.conn
-
-	le.openConnection()
-
-	if old != &le.conn {
-		t.Fail()
-	}
-}
-
-func TestEnsureOpenConnectionCreatesNewConnection(t *testing.T) {
-	le, err := Connect("")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer le.Close()
-
-	le.openConnection()
-
-	if le.conn == nil {
-		t.Fail()
+	written, err := le.Write([]byte("write after close"))
+	if written != 0 || err != ErrClosed {
+		t.Error(written, err)
 	}
 }
 
