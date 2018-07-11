@@ -7,8 +7,10 @@ package le_go
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +27,7 @@ type Logger struct {
 	flag   int
 	mu     sync.Mutex
 	prefix string
+	host   string
 	token  string
 	buf    []byte
 }
@@ -35,8 +38,9 @@ const lineSep = "\n"
 // logentries.com,
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
-func Connect(token string) (*Logger, error) {
+func Connect(host, token string) (*Logger, error) {
 	logger := Logger{
+		host:  host,
 		token: token,
 	}
 
@@ -58,7 +62,7 @@ func (logger *Logger) Close() error {
 
 // Opens a TCP connection to logentries.com
 func (logger *Logger) openConnection() error {
-	conn, err := tls.Dial("tcp", "data.logentries.com:443", &tls.Config{})
+	conn, err := tls.Dial("tcp", logger.host, &tls.Config{})
 	if err != nil {
 		return err
 	}
@@ -104,82 +108,124 @@ func (logger *Logger) ensureOpenConnection() error {
 
 // Fatal is same as Print() but calls to os.Exit(1)
 func (logger *Logger) Fatal(v ...interface{}) {
-	logger.Output(2, fmt.Sprint(v...))
+	logger.Output(3, fmt.Sprint(v...))
 	os.Exit(1)
 }
 
 // Fatalf is same as Printf() but calls to os.Exit(1)
 func (logger *Logger) Fatalf(format string, v ...interface{}) {
-	logger.Output(2, fmt.Sprintf(format, v...))
+	logger.Output(3, fmt.Sprintf(format, v...))
 	os.Exit(1)
 }
 
 // Fatalln is same as Println() but calls to os.Exit(1)
 func (logger *Logger) Fatalln(v ...interface{}) {
-	logger.Output(2, fmt.Sprintln(v...))
+	logger.Output(3, fmt.Sprintln(v...))
 	os.Exit(1)
 }
 
 // Flags returns the logger flags
 func (logger *Logger) Flags() int {
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
 	return logger.flag
 }
 
+// Taken with slight modification from src/log/log.go
+// Output writes the output for a logging event. The string s contains
+// the text to print after the prefix specified by the flags of the
+// Logger. A newline is appended if the last character of s is not
+// already a newline. Calldepth is used to recover the PC and is
+// provided for generality, although at the moment on all pre-defined
+// paths it will be 3.
 // Output does the actual writing to the TCP connection
-func (logger *Logger) Output(calldepth int, s string) error {
-	_, err := logger.Write([]byte(s))
+func (l *Logger) Output(calldepth int, s string) error {
+	now := time.Now() // get this early.
+	var file string
+	var line int
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.flag&(log.Lshortfile|log.Llongfile) != 0 {
+		// Release lock while getting caller info - it's expensive.
+		l.mu.Unlock()
+		var ok bool
+		_, file, line, ok = runtime.Caller(calldepth)
+		if !ok {
+			file = "???"
+			line = 0
+		}
+		l.mu.Lock()
+	}
 
+	// Replace all but the trailing newline with `\u2028`
+	count := strings.Count(s, lineSep)
+	strings.Replace(s, lineSep, "\u2028", count-1)
+
+	l.buf = l.buf[:0]
+	l.buf = append(l.buf, (l.token + " ")...)
+	l.formatHeader(&l.buf, now, file, line)
+	l.buf = append(l.buf, s...)
+	if len(s) == 0 || s[len(s)-1] != '\n' {
+		l.buf = append(l.buf, '\n')
+	}
+	_, err := l.Write(l.buf)
 	return err
 }
 
 // Panic is same as Print() but calls to panic
 func (logger *Logger) Panic(v ...interface{}) {
 	s := fmt.Sprint(v...)
-	logger.Output(2, s)
+	logger.Output(3, s)
 	panic(s)
 }
 
 // Panicf is same as Printf() but calls to panic
 func (logger *Logger) Panicf(format string, v ...interface{}) {
 	s := fmt.Sprintf(format, v...)
-	logger.Output(2, s)
+	logger.Output(3, s)
 	panic(s)
 }
 
 // Panicln is same as Println() but calls to panic
 func (logger *Logger) Panicln(v ...interface{}) {
 	s := fmt.Sprintln(v...)
-	logger.Output(2, s)
+	logger.Output(3, s)
 	panic(s)
 }
 
 // Prefix returns the logger prefix
 func (logger *Logger) Prefix() string {
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
 	return logger.prefix
 }
 
 // Print logs a message
 func (logger *Logger) Print(v ...interface{}) {
-	logger.Output(2, fmt.Sprint(v...))
+	logger.Output(3, fmt.Sprint(v...))
 }
 
 // Printf logs a formatted message
 func (logger *Logger) Printf(format string, v ...interface{}) {
-	logger.Output(2, fmt.Sprintf(format, v...))
+	logger.Output(3, fmt.Sprintf(format, v...))
 }
 
 // Println logs a message with a linebreak
 func (logger *Logger) Println(v ...interface{}) {
-	logger.Output(2, fmt.Sprintln(v...))
+	logger.Output(3, fmt.Sprintln(v...))
 }
 
 // SetFlags sets the logger flags
 func (logger *Logger) SetFlags(flag int) {
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
 	logger.flag = flag
 }
 
 // SetPrefix sets the logger prefix
 func (logger *Logger) SetPrefix(prefix string) {
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
 	logger.prefix = prefix
 }
 
@@ -191,26 +237,75 @@ func (logger *Logger) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
-
-	logger.makeBuf(p)
-
-	return logger.conn.Write(logger.buf)
+	return logger.conn.Write(p)
 }
 
-// makeBuf constructs the logger buffer
-// it is not safe to be used from within multiple concurrent goroutines
-func (logger *Logger) makeBuf(p []byte) {
-	count := strings.Count(string(p), lineSep)
-	p = []byte(strings.Replace(string(p), lineSep, "\u2028", count-1))
-
-	logger.buf = logger.buf[:0]
-	logger.buf = append(logger.buf, (logger.token + " ")...)
-	logger.buf = append(logger.buf, (logger.prefix + " ")...)
-	logger.buf = append(logger.buf, p...)
-
-	if !strings.HasSuffix(string(logger.buf), lineSep) {
-		logger.buf = append(logger.buf, (lineSep)...)
+// Taken wholesale from src/log/log.go
+// formatHeader writes log header to buf in following order:
+//   * l.prefix (if it's not blank),
+//   * date and/or time (if corresponding flags are provided),
+//   * file and line number (if corresponding flags are provided).
+func (l *Logger) formatHeader(buf *[]byte, t time.Time, file string, line int) {
+	*buf = append(*buf, l.prefix...)
+	if l.flag&(log.Ldate|log.Ltime|log.Lmicroseconds) != 0 {
+		if l.flag&log.LUTC != 0 {
+			t = t.UTC()
+		}
+		if l.flag&log.Ldate != 0 {
+			year, month, day := t.Date()
+			itoa(buf, year, 4)
+			*buf = append(*buf, '/')
+			itoa(buf, int(month), 2)
+			*buf = append(*buf, '/')
+			itoa(buf, day, 2)
+			*buf = append(*buf, ' ')
+		}
+		if l.flag&(log.Ltime|log.Lmicroseconds) != 0 {
+			hour, min, sec := t.Clock()
+			itoa(buf, hour, 2)
+			*buf = append(*buf, ':')
+			itoa(buf, min, 2)
+			*buf = append(*buf, ':')
+			itoa(buf, sec, 2)
+			if l.flag&log.Lmicroseconds != 0 {
+				*buf = append(*buf, '.')
+				itoa(buf, t.Nanosecond()/1e3, 6)
+			}
+			*buf = append(*buf, ' ')
+		}
 	}
+	if l.flag&(log.Lshortfile|log.Llongfile) != 0 {
+		if l.flag&log.Lshortfile != 0 {
+			short := file
+			for i := len(file) - 1; i > 0; i-- {
+				if file[i] == '/' {
+					short = file[i+1:]
+					break
+				}
+			}
+			file = short
+		}
+		*buf = append(*buf, file...)
+		*buf = append(*buf, ':')
+		itoa(buf, line, -1)
+		*buf = append(*buf, ": "...)
+	}
+}
+
+// Taken wholesale from src/log/log.go
+// Cheap integer to fixed-width decimal ASCII. Give a negative width to avoid zero-padding.
+func itoa(buf *[]byte, i int, wid int) {
+	// Assemble decimal in reverse order.
+	var b [20]byte
+	bp := len(b) - 1
+	for i >= 10 || wid > 1 {
+		wid--
+		q := i / 10
+		b[bp] = byte('0' + i - q*10)
+		bp--
+		i = q
+	}
+	// i < 10
+	b[bp] = byte('0' + i)
+	*buf = append(*buf, b[bp:]...)
 }
