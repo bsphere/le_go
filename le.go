@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -108,19 +109,28 @@ func (logger *Logger) ensureOpenConnection() error {
 
 // Fatal is same as Print() but calls to os.Exit(1)
 func (logger *Logger) Fatal(v ...interface{}) {
-	logger.Output(3, fmt.Sprint(v...))
+	err := logger.Output(3, fmt.Sprint(v...))
+	if err != nil {
+		fmt.Sprintf("Error in logger.Fatal", err.Error())
+	}
 	os.Exit(1)
 }
 
 // Fatalf is same as Printf() but calls to os.Exit(1)
 func (logger *Logger) Fatalf(format string, v ...interface{}) {
-	logger.Output(3, fmt.Sprintf(format, v...))
+	err := logger.Output(3, fmt.Sprintf(format, v...))
+	if err != nil {
+		fmt.Sprintf("Error in logger.Fatalf", err.Error())
+	}
 	os.Exit(1)
 }
 
 // Fatalln is same as Println() but calls to os.Exit(1)
 func (logger *Logger) Fatalln(v ...interface{}) {
-	logger.Output(3, fmt.Sprintln(v...))
+	err := logger.Output(3, fmt.Sprintln(v...))
+	if err != nil {
+		fmt.Sprintf("Error in logger.Fatalln", err.Error())
+	}
 	os.Exit(1)
 }
 
@@ -140,6 +150,13 @@ func (logger *Logger) Flags() int {
 // paths it will be 3.
 // Output does the actual writing to the TCP connection
 func (l *Logger) Output(calldepth int, s string) error {
+	defer func() {
+		if re := recover(); re != nil {
+			fmt.Printf("Panicked in logger.output %v\n", re)
+			debug.PrintStack()
+			panic(re)
+		}
+	}()
 	now := time.Now() // get this early.
 	var file string
 	var line int
@@ -175,21 +192,30 @@ func (l *Logger) Output(calldepth int, s string) error {
 // Panic is same as Print() but calls to panic
 func (logger *Logger) Panic(v ...interface{}) {
 	s := fmt.Sprint(v...)
-	logger.Output(3, s)
+	err := logger.Output(3, s)
+	if err != nil {
+		fmt.Sprintf("Error in logger.Panic", err.Error())
+	}
 	panic(s)
 }
 
 // Panicf is same as Printf() but calls to panic
 func (logger *Logger) Panicf(format string, v ...interface{}) {
 	s := fmt.Sprintf(format, v...)
-	logger.Output(3, s)
+	err := logger.Output(3, s)
+	if err != nil {
+		fmt.Sprintf("Error in logger.Panicf", err.Error())
+	}
 	panic(s)
 }
 
 // Panicln is same as Println() but calls to panic
 func (logger *Logger) Panicln(v ...interface{}) {
 	s := fmt.Sprintln(v...)
-	logger.Output(3, s)
+	err := logger.Output(3, s)
+	if err != nil {
+		fmt.Sprintf("Error in logger.Panicln", err.Error())
+	}
 	panic(s)
 }
 
@@ -202,17 +228,26 @@ func (logger *Logger) Prefix() string {
 
 // Print logs a message
 func (logger *Logger) Print(v ...interface{}) {
-	logger.Output(3, fmt.Sprint(v...))
+	err := logger.Output(3, fmt.Sprint(v...))
+	if err != nil {
+		fmt.Sprintf("Error in logger.Print", err.Error())
+	}
 }
 
 // Printf logs a formatted message
 func (logger *Logger) Printf(format string, v ...interface{}) {
-	logger.Output(3, fmt.Sprintf(format, v...))
+	err := logger.Output(3, fmt.Sprintf(format, v...))
+	if err != nil {
+		fmt.Sprintf("Error in logger.Printf", err.Error())
+	}
 }
 
 // Println logs a message with a linebreak
 func (logger *Logger) Println(v ...interface{}) {
-	logger.Output(3, fmt.Sprintln(v...))
+	err := logger.Output(3, fmt.Sprintln(v...))
+	if err != nil {
+		fmt.Sprintf("Error in logger.Println", err.Error())
+	}
 }
 
 // SetFlags sets the logger flags
