@@ -24,13 +24,14 @@ import (
 // log operations can be invoked in a non-blocking way by calling them from
 // a goroutine.
 type Logger struct {
-	conn   net.Conn
-	flag   int
-	mu     sync.Mutex
-	prefix string
-	host   string
-	token  string
-	buf    []byte
+	conn          net.Conn
+	flag          int
+	mu            sync.Mutex
+	prefix        string
+	host          string
+	token         string
+	buf           []byte
+	lastRefreshAt time.Time
 }
 
 const lineSep = "\n"
@@ -41,8 +42,9 @@ const lineSep = "\n"
 // choosing manual configuration and token based TCP connection.
 func Connect(host, token string) (*Logger, error) {
 	logger := Logger{
-		host:  host,
-		token: token,
+		host:          host,
+		token:         token,
+		lastRefreshAt: time.Now(),
 	}
 
 	if err := logger.openConnection(); err != nil {
@@ -74,6 +76,11 @@ func (logger *Logger) openConnection() error {
 // It returns if the TCP connection to logentries.com is open
 func (logger *Logger) isOpenConnection() bool {
 	if logger.conn == nil {
+		return false
+	}
+
+	if time.Now().After(logger.lastRefreshAt.Add(15 * time.Minute)) {
+		logger.conn.Close()
 		return false
 	}
 
