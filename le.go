@@ -80,6 +80,7 @@ func (logger *Logger) isOpenConnection() bool {
 	}
 
 	if time.Now().After(logger.lastRefreshAt.Add(15 * time.Minute)) {
+		logger.conn.Close()
 		return false
 	}
 
