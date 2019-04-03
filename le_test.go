@@ -3,12 +3,14 @@ package le_go
 import (
 	"fmt"
 	"io"
+	"net"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestConnectOpensConnection(t *testing.T) {
-	le, err := Connect("")
+	le, err := Connect("data.logentries.com:443", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +27,7 @@ func TestConnectOpensConnection(t *testing.T) {
 }
 
 func TestConnectSetsToken(t *testing.T) {
-	le, err := Connect("myToken")
+	le, err := Connect("data.logentries.com:443", "myToken")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +40,7 @@ func TestConnectSetsToken(t *testing.T) {
 }
 
 func TestCloseClosesConnection(t *testing.T) {
-	le, err := Connect("")
+	le, err := Connect("data.logentries.com:443", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +53,7 @@ func TestCloseClosesConnection(t *testing.T) {
 }
 
 func TestOpenConnectionOpensConnection(t *testing.T) {
-	le, err := Connect("")
+	le, err := Connect("data.logentries.com:443", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +68,7 @@ func TestOpenConnectionOpensConnection(t *testing.T) {
 }
 
 func TestEnsureOpenConnectionDoesNothingOnOpenConnection(t *testing.T) {
-	le, err := Connect("")
+	le, err := Connect("data.logentries.com:443", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +84,7 @@ func TestEnsureOpenConnectionDoesNothingOnOpenConnection(t *testing.T) {
 }
 
 func TestEnsureOpenConnectionCreatesNewConnection(t *testing.T) {
-	le, err := Connect("")
+	le, err := Connect("data.logentries.com:443", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +135,7 @@ func TestSetPrefixSetsPrefix(t *testing.T) {
 }
 
 func TestLoggerImplementsWriterInterface(t *testing.T) {
-	le, err := Connect("myToken")
+	le, err := Connect("data.logentries.com:443", "myToken")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +147,7 @@ func TestLoggerImplementsWriterInterface(t *testing.T) {
 }
 
 func TestReplaceNewline(t *testing.T) {
-	le, err := Connect("myToken")
+	le, err := Connect("data.logentries.com:443", "myToken")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +162,7 @@ func TestReplaceNewline(t *testing.T) {
 }
 
 func TestAddNewline(t *testing.T) {
-	le, err := Connect("myToken")
+	le, err := Connect("data.logentries.com:443", "myToken")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,8 +182,71 @@ func TestAddNewline(t *testing.T) {
 	}
 }
 
+func TestCanSendMoreThan64k(t *testing.T) {
+	le, err := Connect("data.logentries.com:443", "myToken")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer le.Close()
+
+	longBytes := make([]byte, 140000)
+	for i := 0; i < 140000; i++ {
+		longBytes[i] = 'a'
+	}
+	longString := string(longBytes)
+	// Fake the connection so we can hear about it
+	fakeConn := fakeConnection{}
+	le.conn = &fakeConn
+	le.Print(longString)
+
+	if fakeConn.WriteCalls < 2 {
+		t.Fail()
+	}
+}
+
+type fakeConnection struct {
+	WriteCalls int
+}
+
+func (f *fakeConnection) Write(b []byte) (int, error) {
+	f.WriteCalls++
+	return len(b), nil
+}
+
+func (*fakeConnection) Read(b []byte) (int, error) {
+	return len(b), &fakeError{}
+}
+
+func (*fakeConnection) SetReadDeadline(time.Time) error { return nil }
+
+func (*fakeConnection) Close() error                       { return nil }
+func (*fakeConnection) LocalAddr() net.Addr                { return &fakeAddr{} }
+func (*fakeConnection) RemoteAddr() net.Addr               { return &fakeAddr{} }
+func (*fakeConnection) SetDeadline(t time.Time) error      { return nil }
+func (*fakeConnection) SetWriteDeadline(t time.Time) error { return nil }
+
+type fakeError struct{}
+
+func (*fakeError) Error() string {
+	return "fake network error"
+}
+
+func (*fakeError) Timeout() bool {
+	return true
+}
+
+func (*fakeError) Temporary() bool {
+	return true
+}
+
+type fakeAddr struct{}
+
+func (f *fakeAddr) Network() string { return "" }
+func (f *fakeAddr) String() string  { return "" }
+
 func ExampleLogger() {
-	le, err := Connect("XXXX-XXXX-XXXX-XXXX") // replace with token
+	le, err := Connect("data.logentries.com:443", "XXXX-XXXX-XXXX-XXXX") // replace with token
 	if err != nil {
 		panic(err)
 	}
@@ -192,7 +257,7 @@ func ExampleLogger() {
 }
 
 func ExampleLogger_write() {
-	le, err := Connect("XXXX-XXXX-XXXX-XXXX") // replace with token
+	le, err := Connect("data.logentries.com:443", "XXXX-XXXX-XXXX-XXXX") // replace with token
 	if err != nil {
 		panic(err)
 	}
@@ -202,27 +267,27 @@ func ExampleLogger_write() {
 	fmt.Fprintln(le, "another test message")
 }
 
-func BenchmarkMakeBuf(b *testing.B) {
-	le := Logger{token: "token"}
+// func BenchmarkMakeBuf(b *testing.B) {
+// 	le := Logger{token: "token"}
 
-	for i := 0; i < b.N; i++ {
-		le.makeBuf([]byte("test\nstring\n"))
-	}
-}
+// 	for i := 0; i < b.N; i++ {
+// 		le.makeBuf([]byte("test\nstring\n"))
+// 	}
+// }
 
-func BenchmarkMakeBufWithoutNewlineSuffix(b *testing.B) {
-	le := Logger{token: "token"}
+// func BenchmarkMakeBufWithoutNewlineSuffix(b *testing.B) {
+// 	le := Logger{token: "token"}
 
-	for i := 0; i < b.N; i++ {
-		le.makeBuf([]byte("test\nstring"))
-	}
-}
+// 	for i := 0; i < b.N; i++ {
+// 		le.makeBuf([]byte("test\nstring"))
+// 	}
+// }
 
-func BenchmarkMakeBufWithPrefix(b *testing.B) {
-	le := Logger{token: "token"}
-	le.SetPrefix("prefix")
+// func BenchmarkMakeBufWithPrefix(b *testing.B) {
+// 	le := Logger{token: "token"}
+// 	le.SetPrefix("prefix")
 
-	for i := 0; i < b.N; i++ {
-		le.makeBuf([]byte("test\nstring\n"))
-	}
-}
+// 	for i := 0; i < b.N; i++ {
+// 		le.makeBuf([]byte("test\nstring\n"))
+// 	}
+// }
