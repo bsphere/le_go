@@ -35,6 +35,7 @@ type Logger struct {
 }
 
 const lineSep = "\n"
+const maxLogLength int = 65000 //add 535 chars of headroom for the filename, timestamp and header
 
 // Connect creates a new Logger instance and opens a TCP connection to
 // logentries.com,
@@ -118,7 +119,7 @@ func (logger *Logger) ensureOpenConnection() error {
 func (logger *Logger) Fatal(v ...interface{}) {
 	err := logger.Output(3, fmt.Sprint(v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Fatal", err.Error())
+		fmt.Sprintf("Error in logger.Fatal: %s", err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
 	}
 	os.Exit(1)
@@ -128,7 +129,7 @@ func (logger *Logger) Fatal(v ...interface{}) {
 func (logger *Logger) Fatalf(format string, v ...interface{}) {
 	err := logger.Output(3, fmt.Sprintf(format, v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Fatalf", err.Error())
+		fmt.Sprintf("Error in logger.Fatalf: %s",, err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprintf(format, v...))
 	}
 	os.Exit(1)
@@ -138,7 +139,7 @@ func (logger *Logger) Fatalf(format string, v ...interface{}) {
 func (logger *Logger) Fatalln(v ...interface{}) {
 	err := logger.Output(3, fmt.Sprintln(v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Fatalln", err.Error())
+		fmt.Sprintf("Error in logger.Fatalln: %s",, err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
 	}
 	os.Exit(1)
@@ -186,16 +187,27 @@ func (l *Logger) Output(calldepth int, s string) error {
 
 	// Replace all but the trailing newline with `\u2028`
 	count := strings.Count(s, lineSep)
-	strings.Replace(s, lineSep, "\u2028", count-1)
+	s = strings.Replace(s, lineSep, "\u2028", count-1)
 
-	l.buf = l.buf[:0]
-	l.buf = append(l.buf, (l.token + " ")...)
-	l.formatHeader(&l.buf, now, file, line)
-	l.buf = append(l.buf, s...)
-	if len(s) == 0 || s[len(s)-1] != '\n' {
-		l.buf = append(l.buf, '\n')
+	var i, n int
+	var err error
+	for i = 0; i < len(s); i = i + n {
+		end := i + maxLogLength - 2
+		if end > len(s) {
+			end = len(s)
+		}
+		l.buf = l.buf[:0]
+		l.buf = append(l.buf, (l.token + " ")...)
+		l.formatHeader(&l.buf, now, file, line)
+		l.buf = append(l.buf, s[i:end]...)
+		if len(s) == 0 || s[len(s)-1] != '\n' {
+			l.buf = append(l.buf, '\n')
+		}
+		n, err = l.Write(l.buf)
+		if err != nil {
+			return err
+		}
 	}
-	_, err := l.Write(l.buf)
 	return err
 }
 
@@ -204,7 +216,7 @@ func (logger *Logger) Panic(v ...interface{}) {
 	s := fmt.Sprint(v...)
 	err := logger.Output(3, s)
 	if err != nil {
-		fmt.Sprintf("Error in logger.Panic", err.Error())
+		fmt.Sprintf("Error in logger.Panic: %s",, err.Error())
 		fmt.Sprintf("Wanted to log: %s", s)
 	}
 	panic(s)
@@ -215,7 +227,7 @@ func (logger *Logger) Panicf(format string, v ...interface{}) {
 	s := fmt.Sprintf(format, v...)
 	err := logger.Output(3, s)
 	if err != nil {
-		fmt.Sprintf("Error in logger.Panicf", err.Error())
+		fmt.Sprintf("Error in logger.Panicf: %s",, err.Error())
 		fmt.Sprintf("Wanted to log: %s", s)
 	}
 	panic(s)
@@ -226,7 +238,7 @@ func (logger *Logger) Panicln(v ...interface{}) {
 	s := fmt.Sprintln(v...)
 	err := logger.Output(3, s)
 	if err != nil {
-		fmt.Sprintf("Error in logger.Panicln", err.Error())
+		fmt.Sprintf("Error in logger.Panicln: %s",, err.Error())
 		fmt.Sprintf("Wanted to log: %s", s)
 	}
 	panic(s)
@@ -243,7 +255,7 @@ func (logger *Logger) Prefix() string {
 func (logger *Logger) Print(v ...interface{}) {
 	err := logger.Output(3, fmt.Sprint(v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Print", err.Error())
+		fmt.Sprintf("Error in logger.Print: %s",, err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
 	}
 }
@@ -252,7 +264,7 @@ func (logger *Logger) Print(v ...interface{}) {
 func (logger *Logger) Printf(format string, v ...interface{}) {
 	err := logger.Output(3, fmt.Sprintf(format, v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Printf", err.Error())
+		fmt.Sprintf("Error in logger.Printf: %s",, err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprintf(format, v...))
 	}
 }
@@ -261,7 +273,7 @@ func (logger *Logger) Printf(format string, v ...interface{}) {
 func (logger *Logger) Println(v ...interface{}) {
 	err := logger.Output(3, fmt.Sprintln(v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Println", err.Error())
+		fmt.Sprintf("Error in logger.Println: %s",, err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
 	}
 }
@@ -287,7 +299,6 @@ func (logger *Logger) Write(p []byte) (n int, err error) {
 	if err := logger.ensureOpenConnection(); err != nil {
 		return 0, err
 	}
-
 	return logger.conn.Write(p)
 }
 
