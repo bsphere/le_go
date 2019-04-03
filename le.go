@@ -129,7 +129,7 @@ func (logger *Logger) Fatal(v ...interface{}) {
 func (logger *Logger) Fatalf(format string, v ...interface{}) {
 	err := logger.Output(3, fmt.Sprintf(format, v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Fatalf: %s",, err.Error())
+		fmt.Sprintf("Error in logger.Fatalf: %s", err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprintf(format, v...))
 	}
 	os.Exit(1)
@@ -139,7 +139,7 @@ func (logger *Logger) Fatalf(format string, v ...interface{}) {
 func (logger *Logger) Fatalln(v ...interface{}) {
 	err := logger.Output(3, fmt.Sprintln(v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Fatalln: %s",, err.Error())
+		fmt.Sprintf("Error in logger.Fatalln: %s", err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
 	}
 	os.Exit(1)
@@ -216,7 +216,7 @@ func (logger *Logger) Panic(v ...interface{}) {
 	s := fmt.Sprint(v...)
 	err := logger.Output(3, s)
 	if err != nil {
-		fmt.Sprintf("Error in logger.Panic: %s",, err.Error())
+		fmt.Sprintf("Error in logger.Panic: %s", err.Error())
 		fmt.Sprintf("Wanted to log: %s", s)
 	}
 	panic(s)
@@ -227,7 +227,7 @@ func (logger *Logger) Panicf(format string, v ...interface{}) {
 	s := fmt.Sprintf(format, v...)
 	err := logger.Output(3, s)
 	if err != nil {
-		fmt.Sprintf("Error in logger.Panicf: %s",, err.Error())
+		fmt.Sprintf("Error in logger.Panicf: %s", err.Error())
 		fmt.Sprintf("Wanted to log: %s", s)
 	}
 	panic(s)
@@ -238,7 +238,7 @@ func (logger *Logger) Panicln(v ...interface{}) {
 	s := fmt.Sprintln(v...)
 	err := logger.Output(3, s)
 	if err != nil {
-		fmt.Sprintf("Error in logger.Panicln: %s",, err.Error())
+		fmt.Sprintf("Error in logger.Panicln: %s", err.Error())
 		fmt.Sprintf("Wanted to log: %s", s)
 	}
 	panic(s)
@@ -255,7 +255,7 @@ func (logger *Logger) Prefix() string {
 func (logger *Logger) Print(v ...interface{}) {
 	err := logger.Output(3, fmt.Sprint(v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Print: %s",, err.Error())
+		fmt.Sprintf("Error in logger.Print: %s", err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
 	}
 }
@@ -264,7 +264,7 @@ func (logger *Logger) Print(v ...interface{}) {
 func (logger *Logger) Printf(format string, v ...interface{}) {
 	err := logger.Output(3, fmt.Sprintf(format, v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Printf: %s",, err.Error())
+		fmt.Sprintf("Error in logger.Printf: %s", err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprintf(format, v...))
 	}
 }
@@ -273,7 +273,7 @@ func (logger *Logger) Printf(format string, v ...interface{}) {
 func (logger *Logger) Println(v ...interface{}) {
 	err := logger.Output(3, fmt.Sprintln(v...))
 	if err != nil {
-		fmt.Sprintf("Error in logger.Println: %s",, err.Error())
+		fmt.Sprintf("Error in logger.Println: %s", err.Error())
 		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
 	}
 }
