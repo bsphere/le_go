@@ -24,15 +24,16 @@ import (
 // log operations can be invoked in a non-blocking way by calling them from
 // a goroutine.
 type Logger struct {
-	conn          net.Conn
-	flag          int
-	mu            sync.Mutex
-	writeLock     sync.Mutex
-	prefix        string
-	host          string
-	token         string
-	buf           []byte
-	lastRefreshAt time.Time
+	conn              net.Conn
+	flag              int
+	mu                sync.Mutex
+	writeLock         sync.Mutex
+	prefix            string
+	host              string
+	token             string
+	buf               []byte
+	lastRefreshAt     time.Time
+	_testWaitForWrite *sync.WaitGroup
 }
 
 const lineSep = "\n"
@@ -44,9 +45,10 @@ const maxLogLength int = 65000 //add 535 chars of headroom for the filename, tim
 // choosing manual configuration and token based TCP connection.
 func Connect(host, token string) (*Logger, error) {
 	logger := Logger{
-		host:          host,
-		token:         token,
-		lastRefreshAt: time.Now(),
+		host:              host,
+		token:             token,
+		lastRefreshAt:     time.Now(),
+		_testWaitForWrite: nil,
 	}
 
 	if err := logger.openConnection(); err != nil {
@@ -338,6 +340,10 @@ func (l *Logger) writeToLogEntries(s, file string, now time.Time, line int) {
 		if err != nil {
 			log.Printf("Error in write call: %s", err.Error())
 			log.Printf("Wanted to log: %s", s)
+		}
+
+		if l._testWaitForWrite != nil {
+			l._testWaitForWrite.Done()
 		}
 	}
 }
