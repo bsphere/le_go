@@ -156,6 +156,7 @@ func TestReplaceNewline(t *testing.T) {
 
 	le.Println("1\n2\n3")
 
+	<-time.After(10 * time.Millisecond)
 	if strings.Count(string(le.buf), "\u2028") != 2 {
 		t.Fail()
 	}
@@ -171,11 +172,15 @@ func TestAddNewline(t *testing.T) {
 
 	le.Print("123")
 
+	<-time.After(10 * time.Millisecond)
+
 	if !strings.HasSuffix(string(le.buf), "\n") {
 		t.Fail()
 	}
 
 	le.Printf("%s", "123")
+
+	<-time.After(10 * time.Millisecond)
 
 	if !strings.HasSuffix(string(le.buf), "\n") {
 		t.Fail()
@@ -200,6 +205,7 @@ func TestCanSendMoreThan64k(t *testing.T) {
 	le.conn = &fakeConn
 	le.Print(longString)
 
+	<-time.After(10 * time.Millisecond)
 	if fakeConn.WriteCalls < 2 {
 		t.Fail()
 	}
