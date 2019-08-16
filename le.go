@@ -45,10 +45,9 @@ const maxLogLength int = 65000 //add 535 chars of headroom for the filename, tim
 // choosing manual configuration and token based TCP connection.
 func Connect(host, token string) (*Logger, error) {
 	logger := Logger{
-		host:              host,
-		token:             token,
-		lastRefreshAt:     time.Now(),
-		_testWaitForWrite: nil,
+		host:          host,
+		token:         token,
+		lastRefreshAt: time.Now(),
 	}
 
 	if err := logger.openConnection(); err != nil {
