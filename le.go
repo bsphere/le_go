@@ -24,14 +24,16 @@ import (
 // log operations can be invoked in a non-blocking way by calling them from
 // a goroutine.
 type Logger struct {
-	conn          net.Conn
-	flag          int
-	mu            sync.Mutex
-	prefix        string
-	host          string
-	token         string
-	buf           []byte
-	lastRefreshAt time.Time
+	conn              net.Conn
+	flag              int
+	mu                sync.Mutex
+	writeLock         sync.Mutex
+	prefix            string
+	host              string
+	token             string
+	buf               []byte
+	lastRefreshAt     time.Time
+	_testWaitForWrite *sync.WaitGroup
 }
 
 const lineSep = "\n"
@@ -117,32 +119,17 @@ func (logger *Logger) ensureOpenConnection() error {
 
 // Fatal is same as Print() but calls to os.Exit(1)
 func (logger *Logger) Fatal(v ...interface{}) {
-	err := logger.Output(3, fmt.Sprint(v...))
-	if err != nil {
-		fmt.Sprintf("Error in logger.Fatal: %s", err.Error())
-		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
-	}
-	os.Exit(1)
+	logger.Output(3, fmt.Sprint(v...), handleFatalActions)
 }
 
 // Fatalf is same as Printf() but calls to os.Exit(1)
 func (logger *Logger) Fatalf(format string, v ...interface{}) {
-	err := logger.Output(3, fmt.Sprintf(format, v...))
-	if err != nil {
-		fmt.Sprintf("Error in logger.Fatalf: %s", err.Error())
-		fmt.Sprintf("Wanted to log: %s", fmt.Sprintf(format, v...))
-	}
-	os.Exit(1)
+	logger.Output(3, fmt.Sprintf(format, v...), handleFatalActions)
 }
 
 // Fatalln is same as Println() but calls to os.Exit(1)
 func (logger *Logger) Fatalln(v ...interface{}) {
-	err := logger.Output(3, fmt.Sprintln(v...))
-	if err != nil {
-		fmt.Sprintf("Error in logger.Fatalln: %s", err.Error())
-		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
-	}
-	os.Exit(1)
+	logger.Output(3, fmt.Sprintln(v...), handleFatalActions)
 }
 
 // Flags returns the logger flags
@@ -160,7 +147,7 @@ func (logger *Logger) Flags() int {
 // provided for generality, although at the moment on all pre-defined
 // paths it will be 3.
 // Output does the actual writing to the TCP connection
-func (l *Logger) Output(calldepth int, s string) error {
+func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 	defer func() {
 		if re := recover(); re != nil {
 			fmt.Printf("Panicked in logger.output %v\n", re)
@@ -189,59 +176,28 @@ func (l *Logger) Output(calldepth int, s string) error {
 	count := strings.Count(s, lineSep)
 	s = strings.Replace(s, lineSep, "\u2028", count-1)
 
-	var i, n int
-	var err error
-	for i = 0; i < len(s); i = i + n {
-		end := i + maxLogLength - 2
-		if end > len(s) {
-			end = len(s)
-		}
-		l.buf = l.buf[:0]
-		l.buf = append(l.buf, (l.token + " ")...)
-		l.formatHeader(&l.buf, now, file, line)
-		l.buf = append(l.buf, s[i:end]...)
-		if len(s) == 0 || s[len(s)-1] != '\n' {
-			l.buf = append(l.buf, '\n')
-		}
-		n, err = l.Write(l.buf)
-		if err != nil {
-			return err
-		}
-	}
-	return err
+	go func() {
+		l.writeToLogEntries(s, file, now, line)
+		doAsync()
+	}()
 }
 
 // Panic is same as Print() but calls to panic
 func (logger *Logger) Panic(v ...interface{}) {
 	s := fmt.Sprint(v...)
-	err := logger.Output(3, s)
-	if err != nil {
-		fmt.Sprintf("Error in logger.Panic: %s", err.Error())
-		fmt.Sprintf("Wanted to log: %s", s)
-	}
-	panic(s)
+	logger.Output(3, s, handlePanicActions(s))
 }
 
 // Panicf is same as Printf() but calls to panic
 func (logger *Logger) Panicf(format string, v ...interface{}) {
 	s := fmt.Sprintf(format, v...)
-	err := logger.Output(3, s)
-	if err != nil {
-		fmt.Sprintf("Error in logger.Panicf: %s", err.Error())
-		fmt.Sprintf("Wanted to log: %s", s)
-	}
-	panic(s)
+	logger.Output(3, s, handlePanicActions(s))
 }
 
 // Panicln is same as Println() but calls to panic
 func (logger *Logger) Panicln(v ...interface{}) {
 	s := fmt.Sprintln(v...)
-	err := logger.Output(3, s)
-	if err != nil {
-		fmt.Sprintf("Error in logger.Panicln: %s", err.Error())
-		fmt.Sprintf("Wanted to log: %s", s)
-	}
-	panic(s)
+	logger.Output(3, s, handlePanicActions(s))
 }
 
 // Prefix returns the logger prefix
@@ -253,29 +209,17 @@ func (logger *Logger) Prefix() string {
 
 // Print logs a message
 func (logger *Logger) Print(v ...interface{}) {
-	err := logger.Output(3, fmt.Sprint(v...))
-	if err != nil {
-		fmt.Sprintf("Error in logger.Print: %s", err.Error())
-		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
-	}
+	logger.Output(3, fmt.Sprint(v...), handlePrintActions)
 }
 
 // Printf logs a formatted message
 func (logger *Logger) Printf(format string, v ...interface{}) {
-	err := logger.Output(3, fmt.Sprintf(format, v...))
-	if err != nil {
-		fmt.Sprintf("Error in logger.Printf: %s", err.Error())
-		fmt.Sprintf("Wanted to log: %s", fmt.Sprintf(format, v...))
-	}
+	logger.Output(3, fmt.Sprintf(format, v...), handlePrintActions)
 }
 
 // Println logs a message with a linebreak
 func (logger *Logger) Println(v ...interface{}) {
-	err := logger.Output(3, fmt.Sprintln(v...))
-	if err != nil {
-		fmt.Sprintf("Error in logger.Println: %s", err.Error())
-		fmt.Sprintf("Wanted to log: %s", fmt.Sprint(v...))
-	}
+	logger.Output(3, fmt.Sprintln(v...), handlePrintActions)
 }
 
 // SetFlags sets the logger flags
@@ -370,4 +314,49 @@ func itoa(buf *[]byte, i int, wid int) {
 	// i < 10
 	b[bp] = byte('0' + i)
 	*buf = append(*buf, b[bp:]...)
+}
+
+func (l *Logger) writeToLogEntries(s, file string, now time.Time, line int) {
+	l.writeLock.Lock()
+	defer l.writeLock.Unlock()
+
+	var i, n int
+	var err error
+
+	for i = 0; i < len(s); i = i + n {
+		end := i + maxLogLength - 2
+		if end > len(s) {
+			end = len(s)
+		}
+		l.buf = l.buf[:0]
+		l.buf = append(l.buf, (l.token + " ")...)
+		l.formatHeader(&l.buf, now, file, line)
+		l.buf = append(l.buf, s[i:end]...)
+		if len(s) == 0 || s[len(s)-1] != '\n' {
+			l.buf = append(l.buf, '\n')
+		}
+		n, err = l.Write(l.buf)
+		if err != nil {
+			log.Printf("Error in write call: %s", err.Error())
+			log.Printf("Wanted to log: %s", s)
+		}
+
+		if l._testWaitForWrite != nil {
+			l._testWaitForWrite.Done()
+		}
+	}
+}
+
+func handleFatalActions() {
+	os.Exit(1)
+}
+
+func handlePanicActions(s string) func() {
+	return func() {
+		panic(s)
+	}
+}
+
+func handlePrintActions() {
+	return
 }

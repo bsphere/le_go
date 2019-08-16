@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -152,9 +153,14 @@ func TestReplaceNewline(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	le._testWaitForWrite = &sync.WaitGroup{}
+	le._testWaitForWrite.Add(1)
+
 	defer le.Close()
 
 	le.Println("1\n2\n3")
+
+	le._testWaitForWrite.Wait()
 
 	if strings.Count(string(le.buf), "\u2028") != 2 {
 		t.Fail()
@@ -167,15 +173,24 @@ func TestAddNewline(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	le._testWaitForWrite = &sync.WaitGroup{}
+	le._testWaitForWrite.Add(1)
+
 	defer le.Close()
 
 	le.Print("123")
+
+	le._testWaitForWrite.Wait()
 
 	if !strings.HasSuffix(string(le.buf), "\n") {
 		t.Fail()
 	}
 
+	le._testWaitForWrite.Add(1)
+
 	le.Printf("%s", "123")
+
+	le._testWaitForWrite.Wait()
 
 	if !strings.HasSuffix(string(le.buf), "\n") {
 		t.Fail()
@@ -188,6 +203,9 @@ func TestCanSendMoreThan64k(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	le._testWaitForWrite = &sync.WaitGroup{}
+	le._testWaitForWrite.Add(3) // 3 because we need to write 3 times since it exceeds the limit (64k)
+
 	defer le.Close()
 
 	longBytes := make([]byte, 140000)
@@ -199,6 +217,8 @@ func TestCanSendMoreThan64k(t *testing.T) {
 	fakeConn := fakeConnection{}
 	le.conn = &fakeConn
 	le.Print(longString)
+
+	le._testWaitForWrite.Wait()
 
 	if fakeConn.WriteCalls < 2 {
 		t.Fail()
