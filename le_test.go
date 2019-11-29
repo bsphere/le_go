@@ -232,7 +232,7 @@ func TestTimeoutWrites(t *testing.T) {
 	}
 
 	le._testWaitForWrite = &sync.WaitGroup{}
-	le._testWaitForWrite.Add(1) // 3 because we need to write 3 times since it exceeds the limit (64k)
+	le._testWaitForWrite.Add(1)
 
 	defer le.Close()
 
