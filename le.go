@@ -33,11 +33,13 @@ type Logger struct {
 	token             string
 	buf               []byte
 	lastRefreshAt     time.Time
+	writeTimeout      time.Duration
 	_testWaitForWrite *sync.WaitGroup
 }
 
 const lineSep = "\n"
 const maxLogLength int = 65000 //add 535 chars of headroom for the filename, timestamp and header
+var defaultWriteTimeout = 10 * time.Second
 
 // Connect creates a new Logger instance and opens a TCP connection to
 // logentries.com,
@@ -48,6 +50,7 @@ func Connect(host, token string) (*Logger, error) {
 		host:          host,
 		token:         token,
 		lastRefreshAt: time.Now(),
+		writeTimeout:  defaultWriteTimeout,
 	}
 
 	if err := logger.openConnection(); err != nil {
@@ -334,6 +337,12 @@ func (l *Logger) writeToLogEntries(s, file string, now time.Time, line int) {
 		l.buf = append(l.buf, s[i:end]...)
 		if len(s) == 0 || s[len(s)-1] != '\n' {
 			l.buf = append(l.buf, '\n')
+		}
+		err = l.conn.SetWriteDeadline(time.Now().Add(l.writeTimeout))
+		if err != nil {
+			log.Printf("le_go: Error setting write deadline: %s", err.Error())
+			log.Printf("Wanted to log: %s", s)
+			return
 		}
 		n, err = l.Write(l.buf)
 		if err != nil {

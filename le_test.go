@@ -225,13 +225,47 @@ func TestCanSendMoreThan64k(t *testing.T) {
 	}
 }
 
+func TestTimeoutWrites(t *testing.T) {
+	le, err := Connect("data.logentries.com:443", "myToken")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	le._testWaitForWrite = &sync.WaitGroup{}
+	le._testWaitForWrite.Add(1)
+
+	defer le.Close()
+
+	b := make([]byte, 1000)
+	for i := 0; i < 1000; i++ {
+		b[i] = 'a'
+	}
+	s := string(b)
+	// Fake the connection so we can hear about it
+	fakeConn := fakeConnection{}
+	le.conn = &fakeConn
+	le.Print(s)
+
+	le._testWaitForWrite.Wait()
+
+	if fakeConn.SetWriteTimeoutCalls < 1 {
+		t.Fail()
+	}
+}
+
 type fakeConnection struct {
-	WriteCalls int
+	WriteCalls           int
+	SetWriteTimeoutCalls int
 }
 
 func (f *fakeConnection) Write(b []byte) (int, error) {
 	f.WriteCalls++
 	return len(b), nil
+}
+
+func (f *fakeConnection) SetWriteDeadline(t time.Time) error {
+	f.SetWriteTimeoutCalls++
+	return nil
 }
 
 func (*fakeConnection) Read(b []byte) (int, error) {
@@ -240,11 +274,10 @@ func (*fakeConnection) Read(b []byte) (int, error) {
 
 func (*fakeConnection) SetReadDeadline(time.Time) error { return nil }
 
-func (*fakeConnection) Close() error                       { return nil }
-func (*fakeConnection) LocalAddr() net.Addr                { return &fakeAddr{} }
-func (*fakeConnection) RemoteAddr() net.Addr               { return &fakeAddr{} }
-func (*fakeConnection) SetDeadline(t time.Time) error      { return nil }
-func (*fakeConnection) SetWriteDeadline(t time.Time) error { return nil }
+func (*fakeConnection) Close() error                  { return nil }
+func (*fakeConnection) LocalAddr() net.Addr           { return &fakeAddr{} }
+func (*fakeConnection) RemoteAddr() net.Addr          { return &fakeAddr{} }
+func (*fakeConnection) SetDeadline(t time.Time) error { return nil }
 
 type fakeError struct{}
 
