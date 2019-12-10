@@ -100,7 +100,8 @@ func TestEnsureOpenConnectionCreatesNewConnection(t *testing.T) {
 }
 
 func TestFlagsReturnsFlag(t *testing.T) {
-	le := Logger{flag: 2}
+	le := newEmptyLogger("", "")
+	le.flag = 2
 
 	if le.Flags() != 2 {
 		t.Fail()
@@ -108,7 +109,8 @@ func TestFlagsReturnsFlag(t *testing.T) {
 }
 
 func TestSetFlagsSetsFlag(t *testing.T) {
-	le := Logger{flag: 2}
+	le := newEmptyLogger("", "")
+	le.flag = 2
 
 	le.SetFlags(1)
 
@@ -118,7 +120,8 @@ func TestSetFlagsSetsFlag(t *testing.T) {
 }
 
 func TestPrefixReturnsPrefix(t *testing.T) {
-	le := Logger{prefix: "myPrefix"}
+	le := newEmptyLogger("", "")
+	le.prefix = "myPrefix"
 
 	if le.Prefix() != "myPrefix" {
 		t.Fail()
@@ -126,7 +129,8 @@ func TestPrefixReturnsPrefix(t *testing.T) {
 }
 
 func TestSetPrefixSetsPrefix(t *testing.T) {
-	le := Logger{prefix: "myPrefix"}
+	le := newEmptyLogger("", "")
+	le.prefix = "myPrefix"
 
 	le.SetPrefix("myNewPrefix")
 
@@ -230,6 +234,10 @@ func TestTimeoutWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	timedoutCount := 0
+	le._testTimedoutWrite = func() {
+		timedoutCount++
+	}
 
 	le._testWaitForWrite = &sync.WaitGroup{}
 	le._testWaitForWrite.Add(1)
@@ -242,13 +250,19 @@ func TestTimeoutWrites(t *testing.T) {
 	}
 	s := string(b)
 	// Fake the connection so we can hear about it
-	fakeConn := fakeConnection{}
+	fakeConn := fakeConnection{
+		writeDuration: 12 * time.Second,
+	}
 	le.conn = &fakeConn
-	le.Print(s)
+	go le.Print(s)
+	go le.Print(s)
 
 	le._testWaitForWrite.Wait()
 
 	if fakeConn.SetWriteTimeoutCalls < 1 {
+		t.Fail()
+	}
+	if timedoutCount < 1 {
 		t.Fail()
 	}
 }
@@ -256,9 +270,11 @@ func TestTimeoutWrites(t *testing.T) {
 type fakeConnection struct {
 	WriteCalls           int
 	SetWriteTimeoutCalls int
+	writeDuration        time.Duration
 }
 
 func (f *fakeConnection) Write(b []byte) (int, error) {
+	<-time.After(f.writeDuration)
 	f.WriteCalls++
 	return len(b), nil
 }

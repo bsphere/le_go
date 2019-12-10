@@ -24,17 +24,18 @@ import (
 // log operations can be invoked in a non-blocking way by calling them from
 // a goroutine.
 type Logger struct {
-	conn              net.Conn
-	flag              int
-	mu                sync.Mutex
-	writeLock         sync.Mutex
-	prefix            string
-	host              string
-	token             string
-	buf               []byte
-	lastRefreshAt     time.Time
-	writeTimeout      time.Duration
-	_testWaitForWrite *sync.WaitGroup
+	conn               net.Conn
+	flag               int
+	mu                 chan struct{}
+	writeLock          chan struct{}
+	prefix             string
+	host               string
+	token              string
+	buf                []byte
+	lastRefreshAt      time.Time
+	writeTimeout       time.Duration
+	_testWaitForWrite  *sync.WaitGroup
+	_testTimedoutWrite func()
 }
 
 const lineSep = "\n"
@@ -46,18 +47,28 @@ var defaultWriteTimeout = 10 * time.Second
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
 func Connect(host, token string) (*Logger, error) {
-	logger := Logger{
-		host:          host,
-		token:         token,
-		lastRefreshAt: time.Now(),
-		writeTimeout:  defaultWriteTimeout,
-	}
+	logger := newEmptyLogger(host, token)
 
 	if err := logger.openConnection(); err != nil {
 		return nil, err
 	}
 
 	return &logger, nil
+}
+
+func newEmptyLogger(host, token string) Logger {
+	l := Logger{
+		host:               host,
+		token:              token,
+		lastRefreshAt:      time.Now(),
+		writeTimeout:       defaultWriteTimeout,
+		writeLock:          make(chan struct{}, 1),
+		mu:                 make(chan struct{}, 1),
+		_testTimedoutWrite: func() {}, //NOP for prod
+	}
+	unlock(l.writeLock)
+	unlock(l.mu)
+	return l
 }
 
 // Close closes the TCP connection to logentries.com
@@ -137,8 +148,8 @@ func (logger *Logger) Fatalln(v ...interface{}) {
 
 // Flags returns the logger flags
 func (logger *Logger) Flags() int {
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
+	<-logger.mu
+	defer unlock(logger.mu)
 	return logger.flag
 }
 
@@ -161,18 +172,30 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 	now := time.Now() // get this early.
 	var file string
 	var line int
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	select {
+	case <-l.mu:
+	case <-time.After(l.writeTimeout):
+		fmt.Printf("Timedout waiting for logger.mu, wanted to log: %s", s)
+		l._testTimedoutWrite()
+		return
+	}
+	defer unlock(l.mu)
 	if l.flag&(log.Lshortfile|log.Llongfile) != 0 {
 		// Release lock while getting caller info - it's expensive.
-		l.mu.Unlock()
+		unlock(l.mu)
 		var ok bool
 		_, file, line, ok = runtime.Caller(calldepth)
 		if !ok {
 			file = "???"
 			line = 0
 		}
-		l.mu.Lock()
+		select {
+		case <-l.mu:
+		case <-time.After(l.writeTimeout):
+			fmt.Printf("Timedout waiting for logger.mu after getting caller info, wanted to log: %s", s)
+			l._testTimedoutWrite()
+			return
+		}
 	}
 
 	// Replace all but the trailing newline with `\u2028`
@@ -205,8 +228,8 @@ func (logger *Logger) Panicln(v ...interface{}) {
 
 // Prefix returns the logger prefix
 func (logger *Logger) Prefix() string {
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
+	<-logger.mu
+	defer unlock(logger.mu)
 	return logger.prefix
 }
 
@@ -227,15 +250,15 @@ func (logger *Logger) Println(v ...interface{}) {
 
 // SetFlags sets the logger flags
 func (logger *Logger) SetFlags(flag int) {
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
+	<-logger.mu
+	defer unlock(logger.mu)
 	logger.flag = flag
 }
 
 // SetPrefix sets the logger prefix
 func (logger *Logger) SetPrefix(prefix string) {
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
+	<-logger.mu
+	defer unlock(logger.mu)
 	logger.prefix = prefix
 }
 
@@ -320,8 +343,16 @@ func itoa(buf *[]byte, i int, wid int) {
 }
 
 func (l *Logger) writeToLogEntries(s, file string, now time.Time, line int) {
-	l.writeLock.Lock()
-	defer l.writeLock.Unlock()
+	select {
+	case <-l.writeLock:
+	case <-time.After(l.writeTimeout):
+		//Bail out here
+		fmt.Printf("Timedout waiting for logging writelock: wanted to log: %s", s)
+		l._testTimedoutWrite()
+		return
+	}
+
+	defer unlock(l.writeLock)
 
 	var i, n int
 	var err error
@@ -368,4 +399,8 @@ func handlePanicActions(s string) func() {
 
 func handlePrintActions() {
 	return
+}
+
+func unlock(c chan struct{}) {
+	c <- struct{}{}
 }
