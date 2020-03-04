@@ -36,6 +36,7 @@ type Logger struct {
 	writeTimeout       time.Duration
 	_testWaitForWrite  *sync.WaitGroup
 	_testTimedoutWrite func()
+	wg                 *sync.WaitGroup
 }
 
 const lineSep = "\n"
@@ -65,6 +66,7 @@ func newEmptyLogger(host, token string) Logger {
 		writeLock:          make(chan struct{}, 1),
 		mu:                 make(chan struct{}, 1),
 		_testTimedoutWrite: func() {}, //NOP for prod
+		wg:                 &sync.WaitGroup{},
 	}
 	unlock(l.writeLock)
 	unlock(l.mu)
@@ -202,10 +204,23 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 	count := strings.Count(s, lineSep)
 	s = strings.Replace(s, lineSep, "\u2028", count-1)
 
+	l.wg.Add(1)
 	go func() {
+		defer l.wg.Done()
 		l.writeToLogEntries(s, file, now, line)
 		doAsync()
 	}()
+}
+
+func (l *Logger) Flush() {
+	defer func() {
+		if re := recover(); re != nil {
+			//Protect against misused waitgroups
+			//Usually won't be an issue if the Flush is not waiting a long time
+			log.Println("Recovered while flushing logs")
+		}
+	}()
+	l.wg.Wait()
 }
 
 // Panic is same as Print() but calls to panic
