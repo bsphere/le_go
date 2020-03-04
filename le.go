@@ -213,6 +213,13 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 }
 
 func (l *Logger) Flush() {
+	defer func() {
+		if re := recover(); re != nil {
+			//Protect against misused waitgroups
+			//Usually won't be an issue if the Flush is not waiting a long time
+			log.Println("Recovered while flushing logs")
+		}
+	}()
 	l.wg.Wait()
 }
 
