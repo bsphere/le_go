@@ -362,7 +362,7 @@ func (l *Logger) writeToLogEntries(s, file string, now time.Time, line int) {
 	case <-l.writeLock:
 	case <-time.After(l.writeTimeout):
 		//Bail out here
-		fmt.Printf("Timedout waiting for logging writelock: wanted to log: %s", s)
+		fmt.Printf("%s: Timedout waiting for logging writelock: wanted to log: %s", time.Now().UTC(), s)
 		l._testTimedoutWrite()
 		return
 	}
