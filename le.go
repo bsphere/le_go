@@ -166,7 +166,7 @@ func (logger *Logger) Flags() int {
 func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 	defer func() {
 		if re := recover(); re != nil {
-			fmt.Printf("Panicked in logger.output %v\n", re)
+			log.Printf("Panicked in logger.output %v\n", re)
 			debug.PrintStack()
 			panic(re)
 		}
@@ -177,7 +177,7 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 	select {
 	case <-l.mu:
 	case <-time.After(l.writeTimeout):
-		fmt.Printf("Timedout waiting for logger.mu, wanted to log: %s", s)
+		log.Printf("Timedout waiting for logger.mu, wanted to log: %s", s)
 		l._testTimedoutWrite()
 		return
 	}
@@ -194,7 +194,7 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 		select {
 		case <-l.mu:
 		case <-time.After(l.writeTimeout):
-			fmt.Printf("Timedout waiting for logger.mu after getting caller info, wanted to log: %s", s)
+			log.Printf("Timedout waiting for logger.mu after getting caller info, wanted to log: %s", s)
 			l._testTimedoutWrite()
 			return
 		}
@@ -362,7 +362,7 @@ func (l *Logger) writeToLogEntries(s, file string, now time.Time, line int) {
 	case <-l.writeLock:
 	case <-time.After(l.writeTimeout):
 		//Bail out here
-		fmt.Printf("%s: Timedout waiting for logging writelock: wanted to log: %s", time.Now().UTC(), s)
+		log.Printf("%s: Timedout waiting for logging writelock: wanted to log: %s", time.Now().UTC(), s)
 		l._testTimedoutWrite()
 		return
 	}
