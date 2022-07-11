@@ -7,3 +7,4 @@
  - Add a `Flush` method to the logger so we can wait for all messages to be sent
  - Add a timestamp to logs that timeout and get written to stdout
  - Fix `tcp write i/o timeout` causing an infinite loop in `writeToLogEntries`
+ - Use log instead of fmt library to print to stdout
