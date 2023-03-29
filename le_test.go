@@ -3,12 +3,28 @@ package le_go
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 )
 
 func TestConnectOpensConnection(t *testing.T) {
 	le, err := Connect("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer le.Close()
+
+	if le.conn == nil {
+		t.Fail()
+	}
+}
+
+func TestEndpointEnvironmentVariableConnects(t *testing.T) {
+	os.Setenv("LOGENTRIES_ENDPOINT", "data.logentries.com")
+	le, err := Connect("")
+	os.Unsetenv("LOGENTRIES_ENDPOINT")
 	if err != nil {
 		t.Fatal(err)
 	}

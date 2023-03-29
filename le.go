@@ -72,7 +72,12 @@ func (logger *Logger) Close() error {
 
 // Opens a TCP connection to logentries.com
 func openConnection() (net.Conn, error) {
-	conn, err := tls.Dial("tcp", "data.logentries.com:443", &tls.Config{})
+	endpoint := os.Getenv("LOGENTRIES_ENDPOINT")
+	if endpoint == "" {
+		endpoint = "data.logentries.com"
+	}
+
+	conn, err := tls.Dial("tcp", endpoint + ":443", &tls.Config{})
 	return conn, err
 }
 
