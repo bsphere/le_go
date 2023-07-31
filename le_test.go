@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -11,7 +12,7 @@ import (
 )
 
 func TestConnectOpensConnection(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "")
+	le, err := Connect("data.logentries.com:443", "", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +29,7 @@ func TestConnectOpensConnection(t *testing.T) {
 }
 
 func TestConnectSetsToken(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken")
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +42,7 @@ func TestConnectSetsToken(t *testing.T) {
 }
 
 func TestCloseClosesConnection(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "")
+	le, err := Connect("data.logentries.com:443", "", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +55,7 @@ func TestCloseClosesConnection(t *testing.T) {
 }
 
 func TestOpenConnectionOpensConnection(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "")
+	le, err := Connect("data.logentries.com:443", "", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +70,7 @@ func TestOpenConnectionOpensConnection(t *testing.T) {
 }
 
 func TestEnsureOpenConnectionDoesNothingOnOpenConnection(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "")
+	le, err := Connect("data.logentries.com:443", "", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +86,7 @@ func TestEnsureOpenConnectionDoesNothingOnOpenConnection(t *testing.T) {
 }
 
 func TestEnsureOpenConnectionCreatesNewConnection(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "")
+	le, err := Connect("data.logentries.com:443", "", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +141,7 @@ func TestSetPrefixSetsPrefix(t *testing.T) {
 }
 
 func TestLoggerImplementsWriterInterface(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken")
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +153,7 @@ func TestLoggerImplementsWriterInterface(t *testing.T) {
 }
 
 func TestReplaceNewline(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken")
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +173,7 @@ func TestReplaceNewline(t *testing.T) {
 }
 
 func TestAddNewline(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken")
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +203,7 @@ func TestAddNewline(t *testing.T) {
 }
 
 func TestCanSendMoreThan64k(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken")
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +231,7 @@ func TestCanSendMoreThan64k(t *testing.T) {
 }
 
 func TestTimeoutWrites(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken")
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,6 +265,53 @@ func TestTimeoutWrites(t *testing.T) {
 	}
 	if timedoutCount < 1 {
 		t.Fail()
+	}
+}
+
+func TestLimitedConcurrentWrites(t *testing.T) {
+	le, err := Connect("data.logentries.com:443", "myToken", 3, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	timedoutCount := 0
+	le._testTimedoutWrite = func() {
+		timedoutCount++
+	}
+
+	le._testWaitForWrite = &sync.WaitGroup{}
+	le._testWaitForWrite.Add(1)
+
+	defer le.Close()
+
+	b := make([]byte, 1000)
+	for i := 0; i < 1000; i++ {
+		b[i] = 'a'
+	}
+	s := string(b)
+	// Fake the connection so we can hear about it
+	fakeConn := fakeConnection{
+		writeDuration: 1 * time.Second,
+	}
+	le.conn = &fakeConn
+	le.writeTimeout = 500 * time.Millisecond
+	for i := 0; i < 100; i++ {
+		go le.Print(s)
+	}
+
+	le._testWaitForWrite.Wait()
+
+	if fakeConn.SetWriteTimeoutCalls < 1 {
+		t.Fatalf("SetWriteTimeoutCalls should be > 1, got %d", fakeConn.SetWriteTimeoutCalls)
+	}
+	if fakeConn.SetWriteTimeoutCalls > 3 {
+		t.Fatalf("SetWriteTimeoutCalls should be 3, got %d", fakeConn.SetWriteTimeoutCalls)
+	}
+	if timedoutCount < 1 {
+		t.Fatalf("timedoutCount should be > 1, got %d", timedoutCount)
+	}
+	//Note only 3 timeouts when we have 100 writes, because we only have 3 concurrent writes
+	if timedoutCount > 3 {
+		t.Fatalf("timedoutCount should be 3, got %d", timedoutCount)
 	}
 }
 
@@ -315,7 +363,7 @@ func (f *fakeAddr) Network() string { return "" }
 func (f *fakeAddr) String() string  { return "" }
 
 func ExampleLogger() {
-	le, err := Connect("data.logentries.com:443", "XXXX-XXXX-XXXX-XXXX") // replace with token
+	le, err := Connect("data.logentries.com:443", "XXXX-XXXX-XXXX-XXXX", 0, os.Stderr) // replace with token
 	if err != nil {
 		panic(err)
 	}
@@ -326,7 +374,7 @@ func ExampleLogger() {
 }
 
 func ExampleLogger_write() {
-	le, err := Connect("data.logentries.com:443", "XXXX-XXXX-XXXX-XXXX") // replace with token
+	le, err := Connect("data.logentries.com:443", "XXXX-XXXX-XXXX-XXXX", 0, os.Stderr) // replace with token
 	if err != nil {
 		panic(err)
 	}
