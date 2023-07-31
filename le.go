@@ -7,6 +7,7 @@ package le_go
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -28,6 +29,7 @@ type Logger struct {
 	flag               int
 	mu                 chan struct{}
 	writeLock          chan struct{}
+	concurrentWrites   chan struct{} //limit the goroutines waiting to write
 	prefix             string
 	host               string
 	token              string
@@ -37,6 +39,7 @@ type Logger struct {
 	_testWaitForWrite  *sync.WaitGroup
 	_testTimedoutWrite func()
 	wg                 *sync.WaitGroup
+	errOutput          io.Writer
 }
 
 const lineSep = "\n"
@@ -47,8 +50,19 @@ var defaultWriteTimeout = 10 * time.Second
 // logentries.com,
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
-func Connect(host, token string) (*Logger, error) {
+func Connect(host, token string, concurrentWrites int, errOutput io.Writer) (*Logger, error) {
 	logger := newEmptyLogger(host, token)
+	if concurrentWrites > 0 {
+		logger.concurrentWrites = make(chan struct{}, concurrentWrites)
+		for i := 0; i < concurrentWrites; i++ {
+			logger.concurrentWrites <- struct{}{}
+		}
+	}
+	if errOutput != nil {
+		logger.errOutput = errOutput
+	} else {
+		logger.errOutput = os.Stdout
+	}
 
 	if err := logger.openConnection(); err != nil {
 		return nil, err
@@ -166,18 +180,25 @@ func (logger *Logger) Flags() int {
 func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 	defer func() {
 		if re := recover(); re != nil {
-			fmt.Printf("Panicked in logger.output %v\n", re)
+			fmt.Fprintf(l.errOutput, "Panicked in logger.output %v\n", re)
 			debug.PrintStack()
 			panic(re)
 		}
 	}()
+	if l.concurrentWrites != nil {
+		select {
+		case <-l.concurrentWrites:
+		default:
+			return
+		}
+	}
 	now := time.Now() // get this early.
 	var file string
 	var line int
 	select {
 	case <-l.mu:
 	case <-time.After(l.writeTimeout):
-		fmt.Printf("Timedout waiting for logger.mu, wanted to log: %s", s)
+		fmt.Fprintf(l.errOutput, "Timedout waiting for logger.mu, wanted to log: %s", s)
 		l._testTimedoutWrite()
 		return
 	}
@@ -194,7 +215,7 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 		select {
 		case <-l.mu:
 		case <-time.After(l.writeTimeout):
-			fmt.Printf("Timedout waiting for logger.mu after getting caller info, wanted to log: %s", s)
+			fmt.Fprintf(l.errOutput, "Timedout waiting for logger.mu after getting caller info, wanted to log: %s", s)
 			l._testTimedoutWrite()
 			return
 		}
@@ -209,6 +230,9 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 		defer l.wg.Done()
 		l.writeToLogEntries(s, file, now, line)
 		doAsync()
+		if l.concurrentWrites != nil {
+			l.concurrentWrites <- struct{}{}
+		}
 	}()
 }
 
@@ -362,7 +386,7 @@ func (l *Logger) writeToLogEntries(s, file string, now time.Time, line int) {
 	case <-l.writeLock:
 	case <-time.After(l.writeTimeout):
 		//Bail out here
-		fmt.Printf("%s: Timedout waiting for logging writelock: wanted to log: %s", time.Now().UTC(), s)
+		fmt.Fprintf(l.errOutput, "%s: Timedout waiting for logging writelock: wanted to log: %s", time.Now().UTC(), s)
 		l._testTimedoutWrite()
 		return
 	}
