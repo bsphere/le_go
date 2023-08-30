@@ -31,6 +31,7 @@ type Logger struct {
 	mu                 chan struct{}
 	writeLock          chan struct{}
 	concurrentWrites   chan struct{} //limit the goroutines waiting to write
+	callDepthOffset    int
 	prefix             string
 	host               string
 	token              string
@@ -51,9 +52,9 @@ var defaultWriteTimeout = 10 * time.Second
 // logentries.com,
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
-func Connect(host, token string, concurrentWrites int, errOutput io.Writer) (*Logger, error) {
-	log.Println("le_go Connect start")
-	logger := newEmptyLogger(host, token)
+func Connect(host, token string, concurrentWrites int, callDepthOffset int, errOutput io.Writer) (*Logger, error) {
+	log.Println("--------- le_go Connect start")
+	logger := newEmptyLogger(host, token, callDepthOffset)
 	if concurrentWrites > 0 {
 		logger.concurrentWrites = make(chan struct{}, concurrentWrites)
 		for i := 0; i < concurrentWrites; i++ {
@@ -73,10 +74,11 @@ func Connect(host, token string, concurrentWrites int, errOutput io.Writer) (*Lo
 	return &logger, nil
 }
 
-func newEmptyLogger(host, token string) Logger {
+func newEmptyLogger(host, token string, callDepthOffset int) Logger {
 	l := Logger{
 		host:               host,
 		token:              token,
+		callDepthOffset:    callDepthOffset,
 		lastRefreshAt:      time.Now(),
 		writeTimeout:       defaultWriteTimeout,
 		writeLock:          make(chan struct{}, 1),
@@ -213,6 +215,12 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 			fileAndLine := fmt.Sprintf("%s:%d", filepath.Base(file), line)
 			log.Printf("%-30s # Stack trace index: %d", fileAndLine, i)
 		}
+
+		chosenCallDepth := calldepth + l.callDepthOffset
+		log.Println("chosen call depth:", chosenCallDepth)
+		_, file, line, _ := runtime.Caller(chosenCallDepth)
+		fileAndLine := fmt.Sprintf("%s:%d", filepath.Base(file), line)
+		log.Printf("%-30s # Stack trace index: %d", fileAndLine, chosenCallDepth)
 
 		select {
 		case <-l.mu:
