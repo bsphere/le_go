@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -51,6 +52,7 @@ var defaultWriteTimeout = 10 * time.Second
 // The token can be generated at logentries.com by adding a new log,
 // choosing manual configuration and token based TCP connection.
 func Connect(host, token string, concurrentWrites int, errOutput io.Writer) (*Logger, error) {
+	log.Println("le_go Connect start")
 	logger := newEmptyLogger(host, token)
 	if concurrentWrites > 0 {
 		logger.concurrentWrites = make(chan struct{}, concurrentWrites)
@@ -64,9 +66,9 @@ func Connect(host, token string, concurrentWrites int, errOutput io.Writer) (*Lo
 		logger.errOutput = os.Stdout
 	}
 
-	if err := logger.openConnection(); err != nil {
-		return nil, err
-	}
+	// if err := logger.openConnection(); err != nil {
+	// 	return nil, err
+	// }
 
 	return &logger, nil
 }
@@ -178,6 +180,7 @@ func (logger *Logger) Flags() int {
 // paths it will be 3.
 // Output does the actual writing to the TCP connection
 func (l *Logger) Output(calldepth int, s string, doAsync func()) {
+	log.Println("----------- le_go Output start!")
 	defer func() {
 		if re := recover(); re != nil {
 			fmt.Fprintf(l.errOutput, "Panicked in logger.output %v\n", re)
@@ -192,9 +195,7 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 			return
 		}
 	}
-	now := time.Now() // get this early.
-	var file string
-	var line int
+	// now := time.Now() // get this early.
 	select {
 	case <-l.mu:
 	case <-time.After(l.writeTimeout):
@@ -206,12 +207,13 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 	if l.flag&(log.Lshortfile|log.Llongfile) != 0 {
 		// Release lock while getting caller info - it's expensive.
 		unlock(l.mu)
-		var ok bool
-		_, file, line, ok = runtime.Caller(calldepth)
-		if !ok {
-			file = "???"
-			line = 0
+
+		for i := 4; i >= 0; i-- {
+			_, file, line, _ := runtime.Caller(i)
+			fileAndLine := fmt.Sprintf("%s:%d", filepath.Base(file), line)
+			log.Printf("%-30s # Stack trace index: %d", fileAndLine, i)
 		}
+
 		select {
 		case <-l.mu:
 		case <-time.After(l.writeTimeout):
@@ -228,7 +230,8 @@ func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 	l.wg.Add(1)
 	go func() {
 		defer l.wg.Done()
-		l.writeToLogEntries(s, file, now, line)
+		// l.writeToLogEntries(s, file, now, line)
+		// log.Printf("file '%s', line '%d', string to log: '%s', time: '%s'", file, line, s, now)
 		doAsync()
 		if l.concurrentWrites != nil {
 			l.concurrentWrites <- struct{}{}
