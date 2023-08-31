@@ -12,7 +12,7 @@ import (
 )
 
 func TestConnectOpensConnection(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "", 0, nil)
+	le, err := Connect("data.logentries.com:443", "", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestConnectOpensConnection(t *testing.T) {
 }
 
 func TestConnectSetsToken(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestConnectSetsToken(t *testing.T) {
 }
 
 func TestCloseClosesConnection(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "", 0, nil)
+	le, err := Connect("data.logentries.com:443", "", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestCloseClosesConnection(t *testing.T) {
 }
 
 func TestOpenConnectionOpensConnection(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "", 0, nil)
+	le, err := Connect("data.logentries.com:443", "", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestOpenConnectionOpensConnection(t *testing.T) {
 }
 
 func TestEnsureOpenConnectionDoesNothingOnOpenConnection(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "", 0, nil)
+	le, err := Connect("data.logentries.com:443", "", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestEnsureOpenConnectionDoesNothingOnOpenConnection(t *testing.T) {
 }
 
 func TestEnsureOpenConnectionCreatesNewConnection(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "", 0, nil)
+	le, err := Connect("data.logentries.com:443", "", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestEnsureOpenConnectionCreatesNewConnection(t *testing.T) {
 }
 
 func TestFlagsReturnsFlag(t *testing.T) {
-	le := newEmptyLogger("", "")
+	le := newEmptyLogger("", "", 0)
 	le.flag = 2
 
 	if le.Flags() != 2 {
@@ -110,7 +110,7 @@ func TestFlagsReturnsFlag(t *testing.T) {
 }
 
 func TestSetFlagsSetsFlag(t *testing.T) {
-	le := newEmptyLogger("", "")
+	le := newEmptyLogger("", "", 0)
 	le.flag = 2
 
 	le.SetFlags(1)
@@ -121,7 +121,7 @@ func TestSetFlagsSetsFlag(t *testing.T) {
 }
 
 func TestPrefixReturnsPrefix(t *testing.T) {
-	le := newEmptyLogger("", "")
+	le := newEmptyLogger("", "", 0)
 	le.prefix = "myPrefix"
 
 	if le.Prefix() != "myPrefix" {
@@ -130,7 +130,7 @@ func TestPrefixReturnsPrefix(t *testing.T) {
 }
 
 func TestSetPrefixSetsPrefix(t *testing.T) {
-	le := newEmptyLogger("", "")
+	le := newEmptyLogger("", "", 0)
 	le.prefix = "myPrefix"
 
 	le.SetPrefix("myNewPrefix")
@@ -141,7 +141,7 @@ func TestSetPrefixSetsPrefix(t *testing.T) {
 }
 
 func TestLoggerImplementsWriterInterface(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestLoggerImplementsWriterInterface(t *testing.T) {
 }
 
 func TestReplaceNewline(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestReplaceNewline(t *testing.T) {
 }
 
 func TestAddNewline(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestAddNewline(t *testing.T) {
 }
 
 func TestCanSendMoreThan64k(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestCanSendMoreThan64k(t *testing.T) {
 }
 
 func TestTimeoutWrites(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken", 0, nil)
+	le, err := Connect("data.logentries.com:443", "myToken", 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +269,7 @@ func TestTimeoutWrites(t *testing.T) {
 }
 
 func TestLimitedConcurrentWrites(t *testing.T) {
-	le, err := Connect("data.logentries.com:443", "myToken", 3, io.Discard)
+	le, err := Connect("data.logentries.com:443", "myToken", 3, io.Discard, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +363,7 @@ func (f *fakeAddr) Network() string { return "" }
 func (f *fakeAddr) String() string  { return "" }
 
 func ExampleLogger() {
-	le, err := Connect("data.logentries.com:443", "XXXX-XXXX-XXXX-XXXX", 0, os.Stderr) // replace with token
+	le, err := Connect("data.logentries.com:443", "XXXX-XXXX-XXXX-XXXX", 0, os.Stderr, 0) // replace with token
 	if err != nil {
 		panic(err)
 	}
@@ -374,7 +374,7 @@ func ExampleLogger() {
 }
 
 func ExampleLogger_write() {
-	le, err := Connect("data.logentries.com:443", "XXXX-XXXX-XXXX-XXXX", 0, os.Stderr) // replace with token
+	le, err := Connect("data.logentries.com:443", "XXXX-XXXX-XXXX-XXXX", 0, os.Stderr, 0) // replace with token
 	if err != nil {
 		panic(err)
 	}
