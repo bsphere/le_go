@@ -179,7 +179,7 @@ func (logger *Logger) Flags() int {
 // Logger. A newline is appended if the last character of s is not
 // already a newline. Calldepth is used to recover the PC and is
 // provided for generality, although at the moment on all pre-defined
-// paths it will be 3.
+// paths it will be 3 plus a given offset.
 // Output does the actual writing to the TCP connection
 func (l *Logger) Output(calldepth int, s string, doAsync func()) {
 	log.Println("----------- le_go Output start!")
