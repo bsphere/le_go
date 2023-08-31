@@ -10,3 +10,4 @@
  - ~Use log instead of fmt library to print to stdout~
  - Add concurrentWrites param to limit the maximum number of goroutines active logging at a time
  - Add `errOutput` param to allow users to direct errors
+ - Add `calldepthOffset` param to allow users to change the calldepth that is logged
